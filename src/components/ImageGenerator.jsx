@@ -34,6 +34,30 @@ export default function ImageOnlyWelcome({
   // ✅ debounce timer for auto-filter
   const debounceRef = useRef(null);
 
+  // ✅ Normalize API response to always return an array
+  // Works for:
+  // - [ ... ]
+  // - { data: [ ... ] }
+  // - { success: true, data: [ ... ] }
+  // - { data: { data: [ ... ] } } (pagination)
+  const toList = (res) => {
+    const payload = res?.data ?? res;
+
+    if (Array.isArray(payload)) return payload;
+
+    // most common
+    if (Array.isArray(payload?.data)) return payload.data;
+
+    // pagination style: { data: { data: [...] } }
+    if (Array.isArray(payload?.data?.data)) return payload.data.data;
+
+    // sometimes named keys
+    if (Array.isArray(payload?.cars)) return payload.cars;
+    if (Array.isArray(payload?.drivers)) return payload.drivers;
+
+    return [];
+  };
+
   // ✅ Load Google Maps JS (Places)
   useEffect(() => {
     const key = import.meta.env.VITE_GOOGLE_MAPS_KEY;
@@ -174,10 +198,7 @@ export default function ImageOnlyWelcome({
         const carsRes = await api(
           `/public/nearby/cars?lat=${activeCoords.coords.lat}&lng=${activeCoords.coords.lng}&radius=${r}`
         );
-        const carsData = carsRes?.data ?? carsRes;
-        let carsList = Array.isArray(carsData)
-          ? carsData
-          : carsData?.data ?? [];
+        let carsList = toList(carsRes);
 
         // drivers nearby
         let driversList = [];
@@ -185,10 +206,7 @@ export default function ImageOnlyWelcome({
           const driversRes = await api(
             `/public/nearby/drivers?lat=${activeCoords.coords.lat}&lng=${activeCoords.coords.lng}&radius=${r}`
           );
-          const driversData = driversRes?.data ?? driversRes;
-          driversList = Array.isArray(driversData)
-            ? driversData
-            : driversData?.data ?? [];
+          driversList = toList(driversRes);
         }
 
         const nothing =
@@ -204,21 +222,19 @@ export default function ImageOnlyWelcome({
               const res = await api(
                 `/public/vehicles?per_page=24&status=available&sort=created_at&dir=desc`
               );
-              const d = res?.data ?? res;
-              fallbackCars = Array.isArray(d) ? d : d?.data ?? [];
+              fallbackCars = toList(res);
             } catch {
               fallbackCars = [];
             }
 
-            // fallback drivers: retry same coords
+            // fallback drivers: retry same coords (you can change this to a global drivers list if you want)
             let fallbackDrivers = [];
             if (withDriver) {
               try {
                 const res = await api(
                   `/public/nearby/drivers?lat=${activeCoords.coords.lat}&lng=${activeCoords.coords.lng}&radius=${r}`
                 );
-                const dd = res?.data ?? res;
-                fallbackDrivers = Array.isArray(dd) ? dd : dd?.data ?? [];
+                fallbackDrivers = toList(res);
               } catch {
                 fallbackDrivers = [];
               }
@@ -267,7 +283,9 @@ export default function ImageOnlyWelcome({
             <div className="rounded-3xl bg-white/95 shadow-2xl backdrop-blur p-6 sm:p-8">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <div className="text-lg font-bold text-slate-900">🚗 {title}</div>
+                  <div className="text-lg font-bold text-slate-900">
+                    🚗 {title}
+                  </div>
                   <div className="text-sm text-slate-600">{subtitle}</div>
                 </div>
 
@@ -309,13 +327,19 @@ export default function ImageOnlyWelcome({
                 {/* Cars */}
                 <div className="rounded-2xl border border-slate-100 bg-white p-5">
                   <div className="flex items-center justify-between">
-                    <div className="text-sm font-semibold text-slate-900">🚙 Cars</div>
-                    <div className="text-xs text-slate-500">{cars.length} found</div>
+                    <div className="text-sm font-semibold text-slate-900">
+                      🚙 Cars
+                    </div>
+                    <div className="text-xs text-slate-500">
+                      {cars.length} found
+                    </div>
                   </div>
 
                   <div className="mt-4">
                     {cars.length === 0 ? (
-                      <div className="text-sm text-slate-500">No cars available.</div>
+                      <div className="text-sm text-slate-500">
+                        No cars available.
+                      </div>
                     ) : (
                       <ul className="space-y-3">
                         {cars.slice(0, 8).map((c) => (
@@ -352,13 +376,19 @@ export default function ImageOnlyWelcome({
                 {/* Drivers */}
                 <div className="rounded-2xl border border-slate-100 bg-white p-5">
                   <div className="flex items-center justify-between">
-                    <div className="text-sm font-semibold text-slate-900">👤 Drivers</div>
-                    <div className="text-xs text-slate-500">{drivers.length} found</div>
+                    <div className="text-sm font-semibold text-slate-900">
+                      👤 Drivers
+                    </div>
+                    <div className="text-xs text-slate-500">
+                      {drivers.length} found
+                    </div>
                   </div>
 
                   <div className="mt-4">
                     {drivers.length === 0 ? (
-                      <div className="text-sm text-slate-500">No drivers available.</div>
+                      <div className="text-sm text-slate-500">
+                        No drivers available.
+                      </div>
                     ) : (
                       <ul className="space-y-3">
                         {drivers.slice(0, 8).map((d) => (
