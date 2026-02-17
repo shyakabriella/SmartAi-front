@@ -1,31 +1,45 @@
 // src/pages/Login.jsx
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
+
+function safeJsonFromText(text) {
+  if (!text) return null;
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
+}
+
+// map primary role -> route
+const routeForRole = (role) => {
+  const map = {
+    admin: "/admin",
+    manager: "/admin",
+    driver: "/driver",
+    customer: "/customer",
+    agent: "/admin/agent",
+    owner: "/owner",
+    host: "/owner",
+  };
+  return map[String(role || "").toLowerCase()] || "/";
+};
 
 export default function Login() {
   const nav = useNavigate();
   const location = useLocation();
-  const API = import.meta.env.VITE_API_URL || `${window.location.origin}/api`;
+
+  // ✅ use your env (VITE_API_URL). Fallback to /api for same-origin deployments.
+  const API = useMemo(() => {
+    const env = (import.meta.env.VITE_API_URL || "").trim().replace(/\/+$/, "");
+    return env || `${window.location.origin}/api`;
+  }, []);
 
   const [email, setEmail] = useState(localStorage.getItem("lastEmail") || "");
   const [password, setPassword] = useState("");
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
-
-  // map primary role -> route
-  const routeForRole = (role) => {
-    const map = {
-      admin: "/admin",
-      manager: "/admin",
-      driver: "/driver",
-      customer: "/customer",
-      agent: "/admin/agent",
-      owner: "/owner", // 👈 Owner dashboard
-      host: "/owner",  // if backend ever uses "host"
-    };
-    return map[role] || "/";
-  };
 
   async function onSubmit(e) {
     e.preventDefault();
@@ -42,26 +56,44 @@ export default function Login() {
         body: JSON.stringify({ email, password }),
       });
 
-      const json = await res.json();
+      // ✅ SAFELY read body
+      const text = await res.text();
+      const json = safeJsonFromText(text);
 
       if (!res.ok || json?.success === false) {
         const msg =
           json?.message ||
           json?.errors?.email?.[0] ||
+          json?.errors?.password?.[0] ||
           json?.errors?.error?.[0] ||
-          "Login failed";
+          text || // if server returned plain text / HTML
+          `Login failed (${res.status})`;
         throw new Error(msg);
       }
 
-      const data = json?.data ?? json;
-      const token = data?.token;
-      const user = data?.user ?? null;
-      const roles = data?.roles ?? user?.roles_list ?? user?.roles ?? [];
-      const perms = data?.permissions ?? [];
+      // ✅ Normalize different backend response shapes
+      const data = json?.data ?? json ?? {};
+      const token = data?.token || json?.token;
 
-      if (!token) throw new Error("No token in response");
+      // some backends return user directly in `data.user`, others in `user`
+      const user = data?.user ?? json?.user ?? null;
 
-      // normalize role names (handles ['agent'] or [{name:'agent'}])
+      // roles can be: ["owner"] OR [{name:"owner"}] OR user.roles_list etc
+      const roles =
+        data?.roles ??
+        user?.roles_list ??
+        user?.roles ??
+        json?.roles ??
+        [];
+
+      const perms = data?.permissions ?? json?.permissions ?? [];
+
+      if (!token) {
+        throw new Error(
+          "Login succeeded but no token returned. Check RegisterController@login response."
+        );
+      }
+
       const roleNames = Array.isArray(roles)
         ? roles
             .map((r) => (typeof r === "string" ? r : r?.name))
@@ -75,21 +107,20 @@ export default function Login() {
       localStorage.setItem("auth.permissions", JSON.stringify(perms));
       localStorage.setItem("lastEmail", email);
 
-      // compute redirect destination
       const primary =
-        user?.primary_role ||    // from accessor (preferred)
-        user?.role ||            // from users.role column
-        roleNames?.[0] || "";    // fallback: first Spatie role
+        user?.primary_role ||
+        user?.role ||
+        roleNames?.[0] ||
+        "";
 
       const suggested = routeForRole(primary);
 
-      // if guard sent us here, prefer that
       const from = location.state?.from;
       const dest = from ? from : suggested;
 
       nav(dest, { replace: true });
-    } catch (e) {
-      setErr(e.message || "Login failed");
+    } catch (e2) {
+      setErr(e2?.message || "Login failed");
     } finally {
       setLoading(false);
     }
@@ -162,8 +193,11 @@ export default function Login() {
               </div>
 
               {err && (
-                <div className="rounded-lg border border-rose-500/30 bg-rose-900/30 px-3 py-2 text-sm text-rose-300">
+                <div className="rounded-lg border border-rose-500/30 bg-rose-900/30 px-3 py-2 text-sm text-rose-300 whitespace-pre-wrap">
                   {err}
+                  <div className="mt-2 text-xs text-rose-200/80">
+                    API being used: <b>{API}</b>
+                  </div>
                 </div>
               )}
 

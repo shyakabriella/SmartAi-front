@@ -51,20 +51,35 @@ function routeForRole(role) {
   return map[role] || "/admin";
 }
 
-/* ✅ Showrooms routes by role
-   - admin/manager/agent: see ALL showrooms list
-   - owner/host: see only their showroom page
-*/
+/* ✅ Showrooms routes by role */
 function showroomPathForRole(role) {
-  if (role === "admin" || role === "manager" || role === "agent") return "/admin/showrooms";
+  if (role === "admin" || role === "manager" || role === "agent")
+    return "/admin/showrooms";
   if (role === "owner" || role === "host") return "/owner/showroom";
   return null;
 }
 
 function bookingsPathForRole(role) {
-  if (role === "admin" || role === "manager" || role === "agent") return "/admin/bookings";
+  // ✅ booking should be owner only (based on your latest request)
   if (role === "owner" || role === "host") return "/owner/bookings";
-  return "/admin/bookings";
+
+  // keep admin/agent fallback if you still have pages, otherwise remove
+  if ( role === "manager" || role === "agent")
+    return "/admin/bookings";
+
+  return null;
+}
+
+// ✅ Owner Reports
+function ownerReportsPathForRole(role) {
+  if (role === "owner" || role === "host") return "/owner/reports";
+  return null;
+}
+
+// ✅ Admin Reports
+function adminReportsPathForRole(role) {
+  if (role === "admin" || role === "manager") return "/admin/reports";
+  return null;
 }
 
 /* ---------------- styles ---------------- */
@@ -94,7 +109,9 @@ export default function Sidebar({ collapsed: collapsedProp, onToggle }) {
     return Array.isArray(raw)
       ? raw
           .map((r) =>
-            typeof r === "string" ? normalizeRole(r) : normalizeRole(r?.name || r?.slug)
+            typeof r === "string"
+              ? normalizeRole(r)
+              : normalizeRole(r?.name || r?.slug)
           )
           .filter(Boolean)
       : [];
@@ -110,6 +127,9 @@ export default function Sidebar({ collapsed: collapsedProp, onToggle }) {
   const showroomPath = showroomPathForRole(primaryRole);
   const bookingsPath = bookingsPathForRole(primaryRole);
 
+  const ownerReportsPath = ownerReportsPathForRole(primaryRole);
+  const adminReportsPath = adminReportsPathForRole(primaryRole);
+
   const displayName = user?.name || user?.fullName || "User";
   const email = user?.email || "";
 
@@ -117,9 +137,7 @@ export default function Sidebar({ collapsed: collapsedProp, onToggle }) {
   const TOP_MENU = useMemo(() => {
     const base = [{ to: dashboardPath, label: "Dashboard", icon: "🏠" }];
 
-    // ✅ Showrooms menu:
-    // - Admin/Manager/Agent: show "ShowRooms" (list all)
-    // - Owner/Host: show "My ShowRoom" (single + includes vehicles)
+    // ✅ Showrooms menu
     if (showroomPath) {
       base.push({
         to: showroomPath,
@@ -128,13 +146,32 @@ export default function Sidebar({ collapsed: collapsedProp, onToggle }) {
       });
     }
 
-    // ✅ Bookings menu:
-    if (isAdminLike || isAgentLike || isOwnerLike) {
+    // ✅ Bookings menu
+    if (bookingsPath && (isAdminLike || isAgentLike || isOwnerLike)) {
       base.push({ to: bookingsPath, label: "Bookings", icon: "🗓️" });
     }
 
+    // ✅ Reports menu (Owner)
+    if (ownerReportsPath && isOwnerLike) {
+      base.push({ to: ownerReportsPath, label: "Reports", icon: "📊" });
+    }
+
+    // ✅ Admin Reports menu (Admin/Manager)
+    if (adminReportsPath && isAdminLike) {
+      base.push({ to: adminReportsPath, label: "AdminReport", icon: "📈" });
+    }
+
     return base;
-  }, [dashboardPath, showroomPath, bookingsPath, isAdminLike, isAgentLike, isOwnerLike]);
+  }, [
+    dashboardPath,
+    showroomPath,
+    bookingsPath,
+    ownerReportsPath,
+    adminReportsPath,
+    isAdminLike,
+    isAgentLike,
+    isOwnerLike,
+  ]);
 
   /* ---------------- sidebar collapsed state ---------------- */
   const [collapsed, setCollapsed] = useState(() => {

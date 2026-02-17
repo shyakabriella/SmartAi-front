@@ -18,6 +18,15 @@ function pickData(payload) {
   return payload;
 }
 
+function safeJsonFromText(text) {
+  if (!text) return null;
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
+}
+
 export default function OwnerShowroomPage() {
   const nav = useNavigate();
 
@@ -30,9 +39,16 @@ export default function OwnerShowroomPage() {
     );
   }, []);
 
+  // ✅ FIX: read the correct env var (VITE_API_URL), fallback to VITE_API_BASE
+  // Your .env has: VITE_API_URL=http://127.0.0.1:8000/api
   const API_BASE = useMemo(() => {
-    const env = (import.meta?.env?.VITE_API_BASE || "").trim().replace(/\/+$/, "");
-    return env || "/api";
+    const raw =
+      (import.meta?.env?.VITE_API_URL || import.meta?.env?.VITE_API_BASE || "")
+        .trim()
+        .replace(/\/+$/, "");
+
+    // If env missing, fall back to /api (works only if you proxy /api to backend)
+    return raw || "/api";
   }, []);
 
   const [loading, setLoading] = useState(true);
@@ -46,19 +62,30 @@ export default function OwnerShowroomPage() {
 
     async function req(url) {
       const res = await fetch(url, {
+        method: "GET",
         headers: {
           Accept: "application/json",
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
       });
 
-      if (res.status === 401) throw new Error("Unauthorized. Please login again.");
-      const json = await res.json().catch(() => null);
+      const text = await res.text();
+      const json = safeJsonFromText(text);
+
+      // Helpful error messages
+      if (res.status === 401) {
+        throw new Error(json?.message || "Unauthorized. Please login again.");
+      }
 
       if (!res.ok) {
-        const msg = json?.message || json?.error || `Request failed (${res.status})`;
-        throw new Error(msg);
+        const msg =
+          json?.message ||
+          json?.error ||
+          text ||
+          `Request failed (${res.status})`;
+        throw new Error(`${msg}  |  URL: ${url}`);
       }
+
       return json;
     }
 
@@ -67,27 +94,18 @@ export default function OwnerShowroomPage() {
       setErr("");
 
       try {
-        let sr = null;
-
-        // 1) recommended endpoint
-        try {
-          const a = await req(`${API_BASE}/showrooms/my`);
-          sr = pickData(a);
-        } catch {
-          // 2) fallback
-          const uid = user?.id;
-          if (uid) {
-            const b = await req(`${API_BASE}/showrooms?user_id=${encodeURIComponent(uid)}`);
-            const list = pickData(b);
-            sr = Array.isArray(list) ? list[0] : list;
-          }
-        }
-
+        // ✅ REAL endpoints that exist in your Laravel route:list
+        const srRes = await req(`${API_BASE}/showroom/profile`);
+        const sr = pickData(srRes);
         const showroomObj = Array.isArray(sr) ? sr[0] : sr;
 
-        const v = await req(`${API_BASE}/vehicles`);
-        const vData = pickData(v);
-        const vList = Array.isArray(vData) ? vData : Array.isArray(vData?.data) ? vData.data : [];
+        const vRes = await req(`${API_BASE}/showroom/vehicles`);
+        const vData = pickData(vRes);
+        const vList = Array.isArray(vData)
+          ? vData
+          : Array.isArray(vData?.data)
+          ? vData.data
+          : [];
 
         if (!alive) return;
 
@@ -106,7 +124,7 @@ export default function OwnerShowroomPage() {
     return () => {
       alive = false;
     };
-  }, [API_BASE, token, user?.id]);
+  }, [API_BASE, token]);
 
   return (
     <div className="space-y-6">
@@ -114,8 +132,9 @@ export default function OwnerShowroomPage() {
         <div>
           <h1 className="text-2xl font-semibold text-slate-900">My ShowRoom</h1>
           <p className="text-sm text-slate-500">
-            This is your showroom page. From here you can manage and add cars 🚗
+            This is your showroom page. From here you can manage and add cars 
           </p>
+
         </div>
 
         <button
@@ -136,7 +155,8 @@ export default function OwnerShowroomPage() {
         <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-rose-700">
           {err}
           <div className="mt-2 text-sm text-rose-600">
-            Tip: confirm your API route exists (example: <b>/api/showrooms/my</b>).
+            Tip: Your backend routes are: <b>/api/showroom/profile</b> and{" "}
+            <b>/api/showroom/vehicles</b>
           </div>
         </div>
       )}
@@ -164,16 +184,23 @@ export default function OwnerShowroomPage() {
               <div className="rounded-xl border border-slate-200 p-3">
                 <div className="text-xs text-slate-500">Location</div>
                 <div className="font-medium text-slate-800">
-                  {showroom?.location || showroom?.address || showroom?.city || "-"}
+                  {showroom?.location ||
+                    showroom?.address ||
+                    showroom?.city ||
+                    "-"}
                 </div>
               </div>
               <div className="rounded-xl border border-slate-200 p-3">
                 <div className="text-xs text-slate-500">Phone</div>
-                <div className="font-medium text-slate-800">{showroom?.phone || "-"}</div>
+                <div className="font-medium text-slate-800">
+                  {showroom?.phone || "-"}
+                </div>
               </div>
               <div className="rounded-xl border border-slate-200 p-3">
                 <div className="text-xs text-slate-500">Email</div>
-                <div className="font-medium text-slate-800">{showroom?.email || "-"}</div>
+                <div className="font-medium text-slate-800">
+                  {showroom?.email || "-"}
+                </div>
               </div>
             </div>
           </div>
@@ -181,7 +208,9 @@ export default function OwnerShowroomPage() {
           <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
             <div className="px-4 py-3 border-b border-slate-200 font-medium flex items-center justify-between">
               <span>My Vehicles</span>
-              <span className="text-xs text-slate-500">{vehicles?.length || 0} vehicle(s)</span>
+              <span className="text-xs text-slate-500">
+                {vehicles?.length || 0} vehicle(s)
+              </span>
             </div>
 
             <div className="overflow-x-auto">
@@ -209,14 +238,20 @@ export default function OwnerShowroomPage() {
                           {v.status || "available"}
                         </span>
                       </td>
-                      <td className="px-4 py-2">{v.base_daily_rate ?? v.price_per_day ?? "-"}</td>
+                      <td className="px-4 py-2">
+                        {v.base_daily_rate ?? v.price_per_day ?? "-"}
+                      </td>
                     </tr>
                   ))}
 
                   {(!vehicles || vehicles.length === 0) && (
                     <tr>
-                      <td colSpan={5} className="px-4 py-6 text-center text-slate-500">
-                        No vehicles yet. Click <b>Add Car</b> to add your first car 🚗
+                      <td
+                        colSpan={5}
+                        className="px-4 py-6 text-center text-slate-500"
+                      >
+                        No vehicles yet. Click <b>Add Car</b> to add your first
+                        car 🚗
                       </td>
                     </tr>
                   )}

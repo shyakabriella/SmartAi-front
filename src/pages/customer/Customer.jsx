@@ -11,6 +11,10 @@ import {
   Phone,
   RefreshCw,
   User,
+  X,
+  Smartphone,
+  Wallet,
+  ShieldCheck,
 } from "lucide-react";
 
 /* ✅ API base (/api) */
@@ -178,6 +182,15 @@ function statusPillClass(status) {
   return "bg-amber-50 text-amber-800 border-amber-200";
 }
 
+function isPaidBooking(b) {
+  // ✅ demo support: __demoPaid
+  if (b?.__demoPaid) return true;
+
+  const s = String(b?.payment_status || b?.status || bookingStatus(b) || "").toLowerCase();
+  if (!s) return false;
+  return s.includes("paid") || s.includes("success") || s.includes("completed");
+}
+
 async function apiRequest(path, { method = "GET", token = "", body } = {}) {
   const api = String(API_BASE || "").replace(/\/+$/, "");
   if (!api) throw new Error("Missing API base URL. Set VITE_API_URL in .env");
@@ -202,6 +215,221 @@ async function apiRequest(path, { method = "GET", token = "", body } = {}) {
   return json;
 }
 
+/* ---------------- Demo Payment Modal ---------------- */
+function PaymentModal({
+  open,
+  booking,
+  onClose,
+  onPaid,
+}) {
+  const [method, setMethod] = useState("momo");
+  const [processing, setProcessing] = useState(false);
+
+  useEffect(() => {
+    if (open) {
+      setMethod("momo");
+      setProcessing(false);
+    }
+  }, [open]);
+
+  if (!open || !booking) return null;
+
+  const code = bookingCode(booking);
+  const title = bookingTitle(booking);
+  const currency = booking?.currency || booking?.meta?.currency || "RWF";
+  const total =
+    booking?.price_total ||
+    booking?.total ||
+    booking?.amount_total ||
+    booking?.meta?.price_total ||
+    0;
+
+  const pickupTime =
+    booking?.pickup_time ||
+    booking?.start_time ||
+    booking?.pickup_datetime ||
+    booking?.meta?.pickup_time ||
+    null;
+
+  const dropoffTime =
+    booking?.dropoff_time ||
+    booking?.end_time ||
+    booking?.dropoff_datetime ||
+    booking?.meta?.dropoff_time ||
+    null;
+
+  const doPay = async () => {
+    // ✅ DEMO ONLY: no backend call
+    setProcessing(true);
+    await new Promise((r) => setTimeout(r, 900));
+    setProcessing(false);
+
+    onPaid?.({
+      booking,
+      method,
+      paid_at: new Date().toISOString(),
+      amount: total,
+      currency,
+    });
+  };
+
+  const MethodCard = ({ value, icon, title, desc }) => {
+    const active = method === value;
+    return (
+      <button
+        type="button"
+        onClick={() => setMethod(value)}
+        className={[
+          "w-full text-left rounded-2xl border p-4 transition",
+          active
+            ? "border-emerald-300 bg-emerald-50"
+            : "border-slate-200 bg-white hover:bg-slate-50",
+        ].join(" ")}
+      >
+        <div className="flex items-start gap-3">
+          <div
+            className={[
+              "h-10 w-10 rounded-xl grid place-items-center border",
+              active
+                ? "bg-white border-emerald-200 text-emerald-700"
+                : "bg-slate-50 border-slate-200 text-slate-700",
+            ].join(" ")}
+          >
+            {icon}
+          </div>
+
+          <div className="min-w-0">
+            <div className="flex items-center justify-between gap-2">
+              <p className="font-semibold text-slate-900">{title}</p>
+              {active && (
+                <span className="text-[11px] px-2 py-0.5 rounded-full bg-emerald-600 text-white">
+                  Selected
+                </span>
+              )}
+            </div>
+            <p className="mt-1 text-sm text-slate-600">{desc}</p>
+          </div>
+        </div>
+      </button>
+    );
+  };
+
+  return (
+    <div className="fixed inset-0 z-[999]">
+      {/* Backdrop */}
+      <button
+        type="button"
+        className="absolute inset-0 bg-black/40"
+        onClick={onClose}
+        aria-label="Close payment modal"
+      />
+
+      {/* Dialog */}
+      <div className="absolute inset-0 grid place-items-center p-4">
+        <div className="w-full max-w-2xl rounded-3xl bg-white shadow-xl border border-slate-200 overflow-hidden">
+          {/* Header */}
+          <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between">
+            <div>
+              <p className="text-sm font-semibold text-slate-900">Pay Booking</p>
+              <p className="text-xs text-slate-500">
+                Demo payment (no backend) • Booking <b>{code}</b>
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={onClose}
+              className="h-10 w-10 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 grid place-items-center"
+              title="Close"
+            >
+              <X size={18} />
+            </button>
+          </div>
+
+          {/* Body */}
+          <div className="p-5 grid gap-4 lg:grid-cols-[1fr,0.9fr]">
+            {/* Left */}
+            <div className="space-y-3">
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <p className="text-sm font-semibold text-slate-900 truncate">{title}</p>
+                <p className="mt-1 text-xs text-slate-600">
+                  {formatDateTime(pickupTime)} <span className="text-slate-400">→</span>{" "}
+                  {formatDateTime(dropoffTime)}
+                </p>
+
+                <div className="mt-3 rounded-xl border border-slate-200 bg-white px-3 py-2 flex items-center justify-between">
+                  <span className="text-xs text-slate-600 font-semibold">Total to pay</span>
+                  <span className="text-sm font-semibold text-slate-900">
+                    {formatMoney(total, currency)}
+                  </span>
+                </div>
+
+                <div className="mt-3 flex items-center gap-2 text-xs text-slate-600">
+                  <ShieldCheck size={16} className="text-emerald-600" />
+                  Payment is simulated for demo UI only.
+                </div>
+              </div>
+
+              <div className="grid gap-3">
+                <MethodCard
+                  value="momo"
+                  icon={<Smartphone size={18} />}
+                  title="Mobile Money (MoMo)"
+                  desc="Pay using MoMo (demo)."
+                />
+                <MethodCard
+                  value="card"
+                  icon={<CreditCard size={18} />}
+                  title="Card"
+                  desc="Visa / Mastercard (demo)."
+                />
+                <MethodCard
+                  value="cash"
+                  icon={<Wallet size={18} />}
+                  title="Cash"
+                  desc="Pay on delivery (demo)."
+                />
+              </div>
+            </div>
+
+            {/* Right: Actions */}
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 h-fit">
+              <p className="text-sm font-semibold text-slate-900">Confirm</p>
+              <p className="mt-1 text-sm text-slate-600">
+                Selected method:{" "}
+                <span className="font-semibold text-slate-900">
+                  {method === "momo" ? "Mobile Money" : method === "card" ? "Card" : "Cash"}
+                </span>
+              </p>
+
+              <button
+                type="button"
+                onClick={doPay}
+                disabled={processing}
+                className="mt-4 w-full h-11 rounded-xl bg-emerald-600 text-white font-semibold hover:bg-emerald-700 disabled:opacity-60"
+              >
+                {processing ? "Processing…" : `Pay Now • ${formatMoney(total, currency)}`}
+              </button>
+
+              <button
+                type="button"
+                onClick={onClose}
+                className="mt-2 w-full h-11 rounded-xl border border-slate-200 bg-white font-semibold text-slate-700 hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+
+              <p className="mt-3 text-[11px] text-slate-500">
+                💡 Later we will connect this button to your backend payment API.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function Customer() {
   const location = useLocation();
 
@@ -213,14 +441,17 @@ export default function Customer() {
 
   const [bookings, setBookings] = useState([]);
 
-  // ✅ nice banner when coming from BookingDetailsModal → /payment → dashboard
+  // ✅ demo pay modal state
+  const [payOpen, setPayOpen] = useState(false);
+  const [payBooking, setPayBooking] = useState(null);
+
+  // ✅ nice banner when coming from other pages
   const [banner, setBanner] = useState(() => {
     const fromState = location?.state?.bookingSaved || location?.state?.paidOk;
     return fromState
       ? {
           type: "success",
-          message:
-            "✅ Booking saved successfully. You can see it in your bookings below.",
+          message: "✅ Booking saved successfully. You can see it in your bookings below.",
         }
       : null;
   });
@@ -235,9 +466,7 @@ export default function Customer() {
   const stats = useMemo(() => {
     const total = bookings.length;
     const upcoming = bookings.filter((b) => isUpcoming(b)).length;
-    const paid = bookings.filter((b) =>
-      String(bookingStatus(b)).toLowerCase().includes("paid")
-    ).length;
+    const paid = bookings.filter((b) => isPaidBooking(b)).length;
     return { total, upcoming, paid };
   }, [bookings]);
 
@@ -249,7 +478,6 @@ export default function Customer() {
 
     try {
       // ✅ Most common endpoint
-      // If your backend uses a different one (like /customer/bookings), change it here.
       const json = await apiRequest("/bookings", { token });
       const payload = unwrapApiPayload(json);
       const list = normalizeBookings(payload);
@@ -282,7 +510,46 @@ export default function Customer() {
 
   useEffect(() => {
     if (token) loadBookings();
-  }, [token]); // eslint-disable-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
+
+  function openPayModal(b) {
+    setPayBooking(b);
+    setPayOpen(true);
+  }
+
+  function onDemoPaid({ booking, method, paid_at }) {
+    const key = String(booking?.id ?? bookingCode(booking));
+
+    setBookings((prev) =>
+      (prev || []).map((x) => {
+        const k = String(x?.id ?? bookingCode(x));
+        if (k !== key) return x;
+
+        // ✅ Demo mark as paid
+        return {
+          ...x,
+          __demoPaid: true,
+          payment_status: "paid",
+          status: String(x?.status || "").toLowerCase() === "pending" ? "confirmed" : x?.status,
+          paid_at: paid_at,
+          meta: {
+            ...(x?.meta || {}),
+            demo_payment_method: method,
+            demo_paid_at: paid_at,
+          },
+        };
+      })
+    );
+
+    setPayOpen(false);
+    setPayBooking(null);
+
+    setBanner({
+      type: "success",
+      message: `✅ Payment successful (demo). Booking ${bookingCode(booking)} is now marked as PAID.`,
+    });
+  }
 
   if (!token) {
     return (
@@ -325,6 +592,17 @@ export default function Customer() {
 
   return (
     <div className="mx-auto max-w-7xl px-4 sm:px-6 py-8">
+      {/* Demo Payment Modal */}
+      <PaymentModal
+        open={payOpen}
+        booking={payBooking}
+        onClose={() => {
+          setPayOpen(false);
+          setPayBooking(null);
+        }}
+        onPaid={onDemoPaid}
+      />
+
       {/* Banner */}
       {banner && (
         <div
@@ -465,7 +743,7 @@ export default function Customer() {
                 Book a Vehicle
               </Link>
               <p className="mt-2 text-[11px] text-slate-500">
-                Tip: You can view all bookings in{" "}
+                Tip: View all bookings in{" "}
                 <Link to="/customer/bookings" className="underline font-semibold">
                   Bookings
                 </Link>
@@ -545,7 +823,9 @@ export default function Customer() {
               const title = bookingTitle(b);
               const code = bookingCode(b);
 
-              const status = bookingStatus(b);
+              const paid = isPaidBooking(b);
+              const status = paid ? "paid" : bookingStatus(b);
+
               const currency = b?.currency || b?.meta?.currency || "RWF";
               const total =
                 b?.price_total ||
@@ -645,14 +925,22 @@ export default function Customer() {
                     >
                       View
                     </Link>
-                    <Link
-                      to="/payment"
-                      state={{ savedBooking: b, bookingSaved: true }}
-                      className="inline-flex flex-1 items-center justify-center rounded-xl bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-700"
-                      title="Continue payment (if needed)"
+
+                    {/* ✅ Pay opens modal (demo) */}
+                    <button
+                      type="button"
+                      onClick={() => openPayModal(b)}
+                      disabled={paid}
+                      className={[
+                        "inline-flex flex-1 items-center justify-center rounded-xl px-3 py-2 text-xs font-semibold",
+                        paid
+                          ? "bg-emerald-100 text-emerald-800 cursor-not-allowed"
+                          : "bg-emerald-600 text-white hover:bg-emerald-700",
+                      ].join(" ")}
+                      title={paid ? "Already paid" : "Pay (demo modal)"}
                     >
-                      Pay
-                    </Link>
+                      {paid ? "Paid ✅" : "Pay"}
+                    </button>
                   </div>
                 </div>
               );

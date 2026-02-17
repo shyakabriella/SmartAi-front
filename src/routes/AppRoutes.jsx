@@ -12,11 +12,14 @@ import ProtectedRoute from "../components/auth/ProtectedRoute.jsx";
 
 /* ---------------- OWNER ---------------- */
 import Owner from "../pages/owner/Owner.jsx";
-import OwnerShowroomPage from "../pages/owner/OwnerShowroomPage.jsx"; // ✅ REAL SHOWROOM PAGE
+import OwnerShowroomPage from "../pages/owner/OwnerShowroomPage.jsx";
+import Booking from "../pages/owner/Booking.jsx";
+import Report from "../pages/owner/Report.jsx"; // ✅ NEW (create this file)
 
 /* ---------------- ADMIN ---------------- */
 import Admin from "../pages/admin/Admin.jsx";
 import Agent from "../pages/admin/Agent.jsx";
+import AdminReport from "../pages/admin/AdminReport.jsx"; // ✅ NEW
 
 import CustomersPage from "../pages/admin/customers/CustomersPage.jsx";
 import CustomerCreate from "../pages/admin/customers/CustomerCreate.jsx";
@@ -85,16 +88,17 @@ function AppRoutes() {
       >
         <Route index element={<Owner />} />
 
-        {/* ✅ REAL SHOWROOM PAGE (shows showroom + vehicles list + Add car button) */}
+        {/* ✅ Showroom page (showroom + vehicles list) */}
         <Route path="showroom" element={<OwnerShowroomPage />} />
 
-        {/* ✅ reuse VehiclesPage so owner can really add vehicles */}
+        {/* ✅ Reuse VehiclesPage so owner can manage vehicles */}
         <Route path="vehicles" element={<VehiclesPage />} />
 
-        <Route
-          path="bookings"
-          element={<div className="p-6">Owner Bookings (coming soon)</div>}
-        />
+        {/* ✅ Owner bookings page (REAL) */}
+        <Route path="bookings" element={<Booking />} />
+
+        {/* ✅ Owner reports page */}
+        <Route path="reports" element={<Report />} />
       </Route>
 
       {/* ---------------- ADMIN ---------------- */}
@@ -108,6 +112,9 @@ function AppRoutes() {
       >
         <Route index element={<Admin />} />
         <Route path="agent" element={<Agent />} />
+
+        {/* ✅ Admin Report */}
+        <Route path="reports" element={<AdminReport />} />
 
         {/* Showrooms */}
         <Route path="showrooms" element={<ShowroomsPage />} />
@@ -140,10 +147,7 @@ function AppRoutes() {
         <Route path="reviews" element={<ReviewsPage />} />
         <Route path="payments" element={<Payments />} />
 
-        <Route
-          path="bookings"
-          element={<div className="p-6">Bookings (coming soon)</div>}
-        />
+        {/* ✅ Admin bookings removed (owner-only now) */}
       </Route>
 
       {/* ---------------- CATCH-ALL ---------------- */}
