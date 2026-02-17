@@ -10,6 +10,11 @@ import {
   MarkerF,
 } from "@react-google-maps/api";
 
+/**
+ * ✅ IMPORTANT:
+ * - Owners MUST use /showroom/vehicles (allowed by role middleware)
+ * - /vehicles is only for admin/manager/agent
+ */
 const SHOWROOM_BASE = "/showroom/vehicles";
 
 // Prefer Maps key but fallback to Places key (you can use 1 key for both)
@@ -100,12 +105,18 @@ export default function VehicleCreate({
   // ✅ NEW props for edit support
   mode = "create",               // "create" | "edit"
   vehicleId = null,              // number | null
-  resourceBase = "/vehicles",    // "/vehicles" OR "/showroom/vehicles"
+
+  // ✅ FIX: owner default is showroom base
+  resourceBase = SHOWROOM_BASE,  // "/showroom/vehicles" OR "/vehicles"
+
   initialValues = null,          // object to prefill
 }) {
   const navigate = useNavigate();
 
   const isEdit = mode === "edit" && !!vehicleId;
+
+  // ✅ Always use ONE base for all requests (create/edit/images upload)
+  const BASE = (String(resourceBase || "").trim().replace(/\/+$/, "") || SHOWROOM_BASE);
 
   const [step, setStep] = useState(0);
   const [busy, setBusy] = useState(false);
@@ -152,20 +163,21 @@ export default function VehicleCreate({
     google_place_id: "",
   });
 
-  // ✅ Prefill on edit (this is the main fix)
+  // ✅ Prefill on edit (main fix)
   useEffect(() => {
     if (!initialValues) return;
     setForm((prev) => ({ ...prev, ...initialValues }));
   }, [initialValues]);
 
-  // load existing images when editing
+  // ✅ load existing images when editing
   useEffect(() => {
     if (!isEdit) return;
 
     (async () => {
       try {
         setImagesLoading(true);
-        const res = await api(`${SHOWROOM_BASE}/${vehicleId}/images`);
+        // ✅ IMPORTANT: use BASE (not hardcoded showroom)
+        const res = await api(`${BASE}/${vehicleId}/images`);
         const list = res?.data || res || [];
         setExistingImages(Array.isArray(list) ? list : []);
       } catch (e) {
@@ -174,7 +186,7 @@ export default function VehicleCreate({
         setImagesLoading(false);
       }
     })();
-  }, [isEdit, vehicleId]);
+  }, [isEdit, vehicleId, BASE]);
 
   const currentStep = STEPS[step];
 
@@ -276,8 +288,6 @@ export default function VehicleCreate({
 
     if (currentStep.key === "pricing") {
       if (!form.base_daily_rate) e.base_daily_rate = "Daily rate is required";
-
-      // ✅ we require an address (map or manual)
       if (!String(form.location_address || "").trim()) {
         e.location_address = "Pick location on Google Maps or type address";
       }
@@ -338,7 +348,8 @@ export default function VehicleCreate({
       fd.append("image", coverFile);
       fd.append("is_primary", "1");
 
-      await api(`${SHOWROOM_BASE}/${id}/images`, {
+      // ✅ IMPORTANT: use BASE
+      await api(`${BASE}/${id}/images`, {
         method: "POST",
         body: fd,
       });
@@ -350,7 +361,8 @@ export default function VehicleCreate({
       fd.append("image", file);
       fd.append("is_primary", "0");
 
-      await api(`${SHOWROOM_BASE}/${id}/images`, {
+      // ✅ IMPORTANT: use BASE
+      await api(`${BASE}/${id}/images`, {
         method: "POST",
         body: fd,
       });
@@ -380,10 +392,8 @@ export default function VehicleCreate({
       base_hourly_rate: form.base_hourly_rate ? Number(form.base_hourly_rate) : null,
       status: String(form.status || "available"),
 
-      // keep location_id optional (hidden)
       ...(form.location_id ? { location_id: Number(form.location_id) } : {}),
 
-      // ✅ store google location data safely in JSON
       media: {
         map_location: {
           address: String(form.location_address || ""),
@@ -398,23 +408,20 @@ export default function VehicleCreate({
     Object.keys(payload).forEach((k) => payload[k] == null && delete payload[k]);
 
     try {
-      let res;
-
       if (isEdit) {
-        // PATCH edit
-        res = await api(`${resourceBase}/${vehicleId}`, {
+        // ✅ PATCH edit (BASE!)
+        await api(`${BASE}/${vehicleId}`, {
           method: "PATCH",
           body: payload,
         });
 
-        // ✅ If user selected new images -> upload them
         const hasNewImages = !!coverFile || galleryFiles.length > 0;
         if (hasNewImages) {
           await uploadImagesAfterSave(vehicleId);
         }
       } else {
-        // POST create
-        res = await api(`${resourceBase}`, {
+        // ✅ POST create (BASE!)
+        const res = await api(`${BASE}`, {
           method: "POST",
           body: payload,
         });
@@ -461,6 +468,9 @@ export default function VehicleCreate({
           </h1>
           <p className="text-sm text-slate-500">
             Step {step + 1} of {STEPS.length} • {currentStep.title}
+          </p>
+          <p className="mt-1 text-xs text-slate-400">
+            API base: <span className="font-semibold">{BASE}</span>
           </p>
         </div>
       </div>
@@ -918,7 +928,6 @@ function StepPricing({
               </div>
             ))}
 
-            {/* show existing if no new selected */}
             {galleryPreviews.length === 0 &&
               galleryExisting?.map((img) => (
                 <div
@@ -1016,26 +1025,20 @@ function MapLocationPicker({ form, errors, onChange }) {
       ? { lat: Number(form.location_lat), lng: Number(form.location_lng) }
       : null;
 
-  const setFromPlace = (place) => {
+  const onPlaceChanged = () => {
+    if (!auto) return;
+    const place = auto.getPlace();
     const geom = place?.geometry?.location;
     if (!geom) return;
 
     const lat = geom.lat();
     const lng = geom.lng();
-
-    const address =
-      place?.formatted_address || place?.name || form.location_address || "";
+    const address = place?.formatted_address || place?.name || "";
 
     onChange("location_address", address);
     onChange("location_lat", String(lat));
     onChange("location_lng", String(lng));
     onChange("google_place_id", place?.place_id || "");
-  };
-
-  const onPlaceChanged = () => {
-    if (!auto) return;
-    const place = auto.getPlace();
-    setFromPlace(place);
   };
 
   const handleMapClick = (e) => {
@@ -1057,7 +1060,6 @@ function MapLocationPicker({ form, errors, onChange }) {
     }
   };
 
-  // fallback UI if key missing
   if (!GOOGLE_KEY) {
     return (
       <div className="text-sm text-slate-700">
@@ -1075,7 +1077,7 @@ function MapLocationPicker({ form, errors, onChange }) {
           ].join(" ")}
         />
         <p className="mt-2 text-[11px] text-slate-500">
-          Google Maps key missing. Add <b>VITE_GOOGLE_MAPS_API_KEY</b> to enable map picker.
+          Google Maps key missing. Add <b>VITE_GOOGLE_MAPS_API_KEY</b>.
         </p>
       </div>
     );

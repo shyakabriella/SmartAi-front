@@ -3,6 +3,54 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api } from "../../../lib/api";
 
+const BACKEND_ORIGIN =
+  (import.meta.env.VITE_BACKEND_URL || "").trim().replace(/\/+$/, "");
+
+function toAbsoluteUrl(url) {
+  if (!url) return "";
+  const s = String(url).trim();
+  if (!s) return "";
+
+  // already absolute
+  if (s.startsWith("http://") || s.startsWith("https://")) return s;
+
+  // best: backend origin
+  if (BACKEND_ORIGIN) {
+    return s.startsWith("/") ? `${BACKEND_ORIGIN}${s}` : `${BACKEND_ORIGIN}/${s}`;
+  }
+
+  // fallback: current origin (works only if you proxy /storage)
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
+  return s.startsWith("/") ? `${origin}${s}` : `${origin}/${s}`;
+}
+
+/**
+ * Normalize DB stored values to a /storage/... path:
+ * Accepts:
+ * - "drivers/1/x.jpg"
+ * - "/storage/drivers/1/x.jpg"
+ * - "storage/drivers/1/x.jpg"
+ * - full http url
+ */
+function normalizeStoragePath(p) {
+  if (!p) return "";
+
+  const s = String(p).trim();
+  if (!s) return "";
+
+  if (s.startsWith("http://") || s.startsWith("https://")) return s;
+
+  // already /storage/...
+  if (s.startsWith("/storage/")) return s;
+
+  // storage/...
+  if (s.startsWith("storage/")) return `/${s}`;
+
+  // if it is already like "/drivers/1/x.jpg" or "drivers/1/x.jpg"
+  const clean = s.replace(/^\/+/, "");
+  return `/storage/${clean}`;
+}
+
 export default function DriversPage() {
   const nav = useNavigate();
   const [rows, setRows] = useState([]);
@@ -29,10 +77,7 @@ export default function DriversPage() {
       m = {
         current_page: root.current_page,
         last_page: root.last_page,
-        links: [
-          { url: root.prev_page_url || null },
-          { url: root.next_page_url || null },
-        ],
+        links: [{ url: root.prev_page_url || null }, { url: root.next_page_url || null }],
       };
     }
     return { list, meta: m };
@@ -87,10 +132,16 @@ export default function DriversPage() {
   }
 
   function profileImgUrl(driver) {
-    const p = driver?.profile_image;
-    if (!p) return null;
-    if (String(p).startsWith("http")) return p;
-    return `/storage/${p}`;
+    // sometimes photo may be in driver.profile_image OR driver.user.avatar etc
+    const p =
+      driver?.profile_image ||
+      driver?.user?.profile_image ||
+      driver?.user?.avatar ||
+      driver?.user?.photo ||
+      "";
+
+    const normalized = normalizeStoragePath(p);
+    return normalized ? toAbsoluteUrl(normalized) : "";
   }
 
   async function remove(id) {
@@ -108,9 +159,7 @@ export default function DriversPage() {
       <div className="flex items-center justify-between gap-2">
         <div>
           <h1 className="text-xl font-semibold">Drivers</h1>
-          <p className="text-sm text-slate-500">
-            Manage drivers, assignments, and availability.
-          </p>
+         
         </div>
 
         <div className="flex items-center gap-2">
@@ -168,6 +217,7 @@ export default function DriversPage() {
               ) : (
                 filtered.map((d) => {
                   const img = profileImgUrl(d);
+
                   return (
                     <tr key={d.id} className="border-t border-slate-100">
                       {/* Driver */}
@@ -179,6 +229,10 @@ export default function DriversPage() {
                                 src={img}
                                 alt={d.user?.name || "Driver"}
                                 className="h-full w-full object-cover"
+                                onError={(e) => {
+                                  // clean fallback
+                                  e.currentTarget.style.display = "none";
+                                }}
                               />
                             ) : (
                               <div className="h-full w-full grid place-items-center text-slate-400 text-[10px]">
@@ -186,11 +240,10 @@ export default function DriversPage() {
                               </div>
                             )}
                           </div>
+
                           <div className="leading-tight">
                             <div className="font-medium">{d.user?.name || "-"}</div>
-                            <div className="text-xs text-slate-500">
-                              {d.user?.email || "-"}
-                            </div>
+                            <div className="text-xs text-slate-500">{d.user?.email || "-"}</div>
                           </div>
                         </div>
                       </td>
@@ -199,9 +252,7 @@ export default function DriversPage() {
                       <td className="px-4 py-2">
                         <div className="text-slate-700">{d.license_no || "-"}</div>
                         {d.license_category && (
-                          <div className="text-xs text-slate-500">
-                            Cat: {d.license_category}
-                          </div>
+                          <div className="text-xs text-slate-500">Cat: {d.license_category}</div>
                         )}
                       </td>
 
@@ -236,9 +287,7 @@ export default function DriversPage() {
                         <span
                           className={[
                             "inline-flex items-center px-2 py-0.5 rounded text-xs",
-                            d.is_available
-                              ? "bg-blue-50 text-blue-700"
-                              : "bg-slate-100 text-slate-700",
+                            d.is_available ? "bg-blue-50 text-blue-700" : "bg-slate-100 text-slate-700",
                           ].join(" ")}
                         >
                           {d.is_available ? "YES" : "NO"}
