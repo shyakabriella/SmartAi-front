@@ -14,18 +14,18 @@ import ProtectedRoute from "../components/auth/ProtectedRoute.jsx";
 import Owner from "../pages/owner/Owner.jsx";
 import OwnerShowroomPage from "../pages/owner/OwnerShowroomPage.jsx";
 import Booking from "../pages/owner/Booking.jsx";
-import Report from "../pages/owner/Report.jsx"; // ✅ NEW (create this file)
+import Report from "../pages/owner/Report.jsx";
 
 /* ---------------- ADMIN ---------------- */
 import Admin from "../pages/admin/Admin.jsx";
 import Agent from "../pages/admin/Agent.jsx";
-import AdminReport from "../pages/admin/AdminReport.jsx"; // ✅ NEW
+import AdminReport from "../pages/admin/AdminReport.jsx";
 
 import CustomersPage from "../pages/admin/customers/CustomersPage.jsx";
 import CustomerCreate from "../pages/admin/customers/CustomerCreate.jsx";
 import CustomerDetail from "../pages/admin/customers/CustomerDetail.jsx";
 
-import VehiclesPage from "../pages/admin/vehicles/VehiclesPage.jsx"; // ✅ reused for owner too
+import VehiclesPage from "../pages/admin/vehicles/VehiclesPage.jsx";
 import CustomerShowroom from "../pages/admin/vehicles/CustomerShowroom.jsx";
 
 import DriversPage from "../pages/admin/drivers/DriversPage.jsx";
@@ -41,6 +41,10 @@ import ShowroomVehiclesPage from "../pages/admin/showrooms/ShowroomVehiclesPage.
 /* ---------------- CUSTOMER ---------------- */
 import CustomerLayouts from "../pages/customer/CustomerLayouts.jsx";
 import Customer from "../pages/customer/Customer.jsx";
+
+/* ---------------- DRIVER ---------------- */
+import DriverLayouts from "../pages/driver/DriverLayouts.jsx";
+import DriverDashboard from "../pages/driver/DriverDashboard.jsx";
 
 function AppRoutes() {
   return (
@@ -77,6 +81,30 @@ function AppRoutes() {
         />
       </Route>
 
+      {/* ---------------- DRIVER ---------------- */}
+      <Route
+        path="/driver"
+        element={
+          <ProtectedRoute>
+            <DriverLayouts />
+          </ProtectedRoute>
+        }
+      >
+        <Route index element={<DriverDashboard />} />
+        <Route
+          path="requests"
+          element={<div className="p-6">Driver Requests (coming soon)</div>}
+        />
+        <Route
+          path="jobs"
+          element={<div className="p-6">Driver Jobs (coming soon)</div>}
+        />
+        <Route
+          path="profile"
+          element={<div className="p-6">Driver Profile (coming soon)</div>}
+        />
+      </Route>
+
       {/* ---------------- OWNER ---------------- */}
       <Route
         path="/owner"
@@ -94,7 +122,7 @@ function AppRoutes() {
         {/* ✅ Reuse VehiclesPage so owner can manage vehicles */}
         <Route path="vehicles" element={<VehiclesPage />} />
 
-        {/* ✅ Owner bookings page (REAL) */}
+        {/* ✅ Owner bookings page */}
         <Route path="bookings" element={<Booking />} />
 
         {/* ✅ Owner reports page */}
@@ -146,8 +174,6 @@ function AppRoutes() {
         {/* Others */}
         <Route path="reviews" element={<ReviewsPage />} />
         <Route path="payments" element={<Payments />} />
-
-        {/* ✅ Admin bookings removed (owner-only now) */}
       </Route>
 
       {/* ---------------- CATCH-ALL ---------------- */}

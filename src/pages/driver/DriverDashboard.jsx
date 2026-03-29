@@ -5,15 +5,15 @@ import {
   BadgeCheck,
   BriefcaseBusiness,
   CalendarDays,
-  Car,
   CheckCircle2,
   ClipboardList,
   Clock3,
-  CreditCard,
   Mail,
   Phone,
   RefreshCw,
   User,
+  CarFront,
+  MapPinned,
 } from "lucide-react";
 
 const API_BASE =
@@ -25,6 +25,7 @@ const API_BASE =
 const TOKEN_KEYS = ["token", "access_token", "auth_token", "smartcar_token"];
 const USER_KEYS = ["auth.user", "user", "auth_user", "smartcar_user"];
 
+/* ---------------- helpers ---------------- */
 function safeJsonParse(v) {
   try {
     return JSON.parse(v);
@@ -50,23 +51,6 @@ function getStoredUser() {
     if (parsed && typeof parsed === "object") return parsed;
   }
   return null;
-}
-
-function getRoleName(u) {
-  if (!u) return "customer";
-  if (typeof u.role === "string" && u.role.trim()) return u.role.trim().toLowerCase();
-  if (typeof u.primary_role === "string" && u.primary_role.trim()) {
-    return u.primary_role.trim().toLowerCase();
-  }
-  if (Array.isArray(u.roles) && u.roles.length) {
-    const r = u.roles[0];
-    const name = typeof r === "string" ? r : r?.name || r?.slug || "";
-    if (name) return String(name).trim().toLowerCase();
-  }
-  if (Array.isArray(u.roles_list) && u.roles_list.length) {
-    return String(u.roles_list[0]).trim().toLowerCase();
-  }
-  return "customer";
 }
 
 function unwrapApiPayload(json) {
@@ -119,12 +103,14 @@ async function apiRequest(path, { method = "GET", token = "", body } = {}) {
   });
 
   const json = await res.json().catch(() => ({}));
+
   if (!res.ok) {
     const err = new Error(extractErrorMessage(json));
     err.status = res.status;
     err.json = json;
     throw err;
   }
+
   return json;
 }
 
@@ -138,6 +124,7 @@ function toJsDate(value) {
 function formatDateTime(value) {
   const d = toJsDate(value);
   if (!d) return "—";
+
   try {
     return new Intl.DateTimeFormat(undefined, {
       year: "numeric",
@@ -154,6 +141,7 @@ function formatDateTime(value) {
 function formatMoney(amount, currency = "RWF") {
   const n = Number(amount || 0);
   if (Number.isNaN(n)) return `${currency} 0`;
+
   try {
     return new Intl.NumberFormat(undefined, {
       style: "currency",
@@ -235,31 +223,9 @@ function pickupTimeValue(b) {
   );
 }
 
-function dropoffTimeValue(b) {
-  return (
-    b?.dropoff_time ||
-    b?.dropoff_at ||
-    b?.end_time ||
-    b?.dropoff_datetime ||
-    b?.trip_date ||
-    b?.created_at ||
-    null
-  );
-}
-
-function isUpcoming(booking) {
-  const end = toJsDate(dropoffTimeValue(booking));
-  if (!end) return false;
-  return end.getTime() > Date.now();
-}
-
-function isPaidBooking(b) {
-  const s = String(b?.payment_status || b?.status || bookingStatus(b) || "").toLowerCase();
-  return s.includes("paid") || s.includes("success") || s.includes("completed");
-}
-
 function statusPillClass(status) {
   const s = String(status || "").toLowerCase();
+
   if (
     s.includes("paid") ||
     s.includes("confirmed") ||
@@ -269,12 +235,15 @@ function statusPillClass(status) {
   ) {
     return "bg-emerald-50 text-emerald-700 border-emerald-200";
   }
+
   if (s.includes("cancel") || s.includes("failed") || s.includes("reject")) {
     return "bg-rose-50 text-rose-700 border-rose-200";
   }
+
   if (s.includes("complete") || s.includes("done") || s.includes("finished")) {
     return "bg-slate-50 text-slate-700 border-slate-200";
   }
+
   return "bg-amber-50 text-amber-800 border-amber-200";
 }
 
@@ -311,9 +280,10 @@ function isCompletedJobStatus(status) {
   return s.includes("complete") || s.includes("done") || s.includes("finished");
 }
 
+/* ---------------- ui blocks ---------------- */
 function StatCard({ icon, label, value, hint }) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-4">
+    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2 text-slate-700">
           {icon}
@@ -326,46 +296,66 @@ function StatCard({ icon, label, value, hint }) {
   );
 }
 
-function BookingCard({ item, mode = "customer" }) {
+function JobCard({ item }) {
   const status = bookingStatus(item);
-  const paid = isPaidBooking(item);
   const currency = item?.currency || item?.meta?.currency || "RWF";
 
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-4 transition hover:shadow-sm">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="truncate text-sm font-semibold text-slate-900">{bookingTitle(item)}</p>
-          <p className="mt-0.5 text-[11px] text-slate-500">Code: {bookingCode(item)}</p>
+          <p className="truncate text-sm font-semibold text-slate-900">
+            {bookingTitle(item)}
+          </p>
+          <p className="mt-0.5 text-[11px] text-slate-500">
+            Code: {bookingCode(item)}
+          </p>
         </div>
 
         <span
           className={`shrink-0 rounded-full border px-2.5 py-1 text-[11px] font-semibold ${statusPillClass(
-            paid && mode === "customer" ? "paid" : status
+            status
           )}`}
         >
-          {pretty(paid && mode === "customer" ? "paid" : status)}
+          {pretty(status)}
         </span>
       </div>
 
-      <div className="mt-3 space-y-2 text-[12px] text-slate-700">
+      <div className="mt-4 grid gap-2 text-[12px] text-slate-700">
         <div className="flex items-center justify-between gap-2">
-          <span className="text-slate-500">From</span>
-          <span className="max-w-[70%] truncate font-semibold">{pickupValue(item)}</span>
+          <span className="inline-flex items-center gap-1 text-slate-500">
+            <MapPinned size={14} />
+            From
+          </span>
+          <span className="max-w-[70%] truncate font-semibold">
+            {pickupValue(item)}
+          </span>
         </div>
+
         <div className="flex items-center justify-between gap-2">
-          <span className="text-slate-500">To</span>
-          <span className="max-w-[70%] truncate font-semibold">{dropoffValue(item)}</span>
+          <span className="inline-flex items-center gap-1 text-slate-500">
+            <MapPinned size={14} />
+            To
+          </span>
+          <span className="max-w-[70%] truncate font-semibold">
+            {dropoffValue(item)}
+          </span>
         </div>
+
         <div className="flex items-center justify-between gap-2">
-          <span className="text-slate-500">Time</span>
-          <span className="text-right font-semibold">{formatDateTime(pickupTimeValue(item))}</span>
+          <span className="inline-flex items-center gap-1 text-slate-500">
+            <CalendarDays size={14} />
+            Pickup Time
+          </span>
+          <span className="text-right font-semibold">
+            {formatDateTime(pickupTimeValue(item))}
+          </span>
         </div>
       </div>
 
       <div className="mt-4 flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
         <span className="text-[11px] font-semibold text-slate-600">
-          {mode === "driver" ? "Job Value" : "Total"}
+          Job Value
         </span>
         <span className="text-sm font-semibold text-slate-900">
           {formatMoney(bookingAmount(item), currency)}
@@ -375,36 +365,33 @@ function BookingCard({ item, mode = "customer" }) {
   );
 }
 
-function EmptyState({ title, text, action }) {
+function EmptyState({ title, text }) {
   return (
     <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6 text-sm text-slate-700">
       <p className="font-semibold">{title}</p>
       <p className="mt-1 text-slate-600">{text}</p>
-      {action ? <div className="mt-4">{action}</div> : null}
     </div>
   );
 }
 
-export default function Customer() {
+/* ---------------- page ---------------- */
+export default function DriverDashboard() {
   const location = useLocation();
 
   const token = useMemo(() => getStoredToken(), []);
   const user = useMemo(() => getStoredUser(), []);
-  const role = useMemo(() => getRoleName(user), [user]);
-  const isDriverRole = role === "driver";
-  const isCustomerRole = !isDriverRole;
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [profileData, setProfileData] = useState(null);
-  const [bookings, setBookings] = useState([]);
+  const [jobs, setJobs] = useState([]);
 
   const [banner, setBanner] = useState(() => {
-    const ok = location?.state?.bookingSaved || location?.state?.paidOk;
+    const ok = location?.state?.saved || location?.state?.updated;
     return ok
       ? {
           type: "success",
-          message: "Dashboard updated successfully.",
+          message: "Driver dashboard updated successfully.",
         }
       : null;
   });
@@ -412,13 +399,18 @@ export default function Customer() {
   const profile = useMemo(() => {
     const source = profileData?.user || profileData || user || {};
     return {
-      name: source?.name || source?.full_name || (isDriverRole ? "Driver" : "Customer"),
+      name: source?.name || source?.full_name || "Driver",
       email: source?.email || "",
       phone: source?.phone || source?.telephone || "",
       status: profileData?.status || source?.status || "active",
-      id: profileData?.id || "",
+      id: profileData?.id || source?.id || "",
+      license_no:
+        profileData?.license_no ||
+        source?.license_no ||
+        source?.license_number ||
+        "",
     };
-  }, [profileData, user, isDriverRole]);
+  }, [profileData, user]);
 
   async function loadData() {
     if (!token) return;
@@ -427,30 +419,30 @@ export default function Customer() {
     setError("");
 
     try {
-      const tasks = [
+      const [jobsJson, profileJson] = await Promise.all([
         apiRequest("/bookings/me", { token }),
-        apiRequest(isDriverRole ? "/drivers/me" : "/customers/me", { token }),
-      ];
+        apiRequest("/drivers/me", { token }),
+      ]);
 
-      const [bookingsJson, profileJson] = await Promise.all(tasks);
+      const jobsPayload = unwrapApiPayload(jobsJson);
+      const jobsList = normalizeList(jobsPayload);
 
-      const bookingsPayload = unwrapApiPayload(bookingsJson);
-      const bookingsList = normalizeList(bookingsPayload);
-      const sorted = [...bookingsList].sort((a, b) => {
+      const sorted = [...jobsList].sort((a, b) => {
         const da = toJsDate(a?.created_at || pickupTimeValue(a))?.getTime() || 0;
         const db = toJsDate(b?.created_at || pickupTimeValue(b))?.getTime() || 0;
         return db - da;
       });
 
-      setBookings(sorted);
+      setJobs(sorted);
       setProfileData(unwrapApiPayload(profileJson));
     } catch (e) {
       const status = e?.status;
-      const msg = e?.message || "Failed to load dashboard.";
+      const msg = e?.message || "Failed to load driver dashboard.";
+
       if (status === 401) {
         setError("Your session expired. Please login again.");
       } else if (status === 403) {
-        setError("Access denied. Please confirm your account role permissions.");
+        setError("Access denied. Please confirm driver permissions.");
       } else {
         setError(msg);
       }
@@ -462,38 +454,30 @@ export default function Customer() {
   useEffect(() => {
     if (token) loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token, isDriverRole]);
+  }, [token]);
 
-  const customerStats = useMemo(() => {
+  const stats = useMemo(() => {
     return {
-      total: bookings.length,
-      upcoming: bookings.filter(isUpcoming).length,
-      paid: bookings.filter(isPaidBooking).length,
-      pending: bookings.filter((b) => isRequestStatus(bookingStatus(b))).length,
+      total: jobs.length,
+      requests: jobs.filter((b) => isRequestStatus(bookingStatus(b))).length,
+      active: jobs.filter((b) => isActiveJobStatus(bookingStatus(b))).length,
+      completed: jobs.filter((b) => isCompletedJobStatus(bookingStatus(b))).length,
     };
-  }, [bookings]);
+  }, [jobs]);
 
-  const driverStats = useMemo(() => {
-    return {
-      total: bookings.length,
-      requests: bookings.filter((b) => isRequestStatus(bookingStatus(b))).length,
-      active: bookings.filter((b) => isActiveJobStatus(bookingStatus(b))).length,
-      completed: bookings.filter((b) => isCompletedJobStatus(bookingStatus(b))).length,
-    };
-  }, [bookings]);
-
-  const driverRequests = useMemo(
-    () => bookings.filter((b) => isRequestStatus(bookingStatus(b))),
-    [bookings]
+  const requests = useMemo(
+    () => jobs.filter((b) => isRequestStatus(bookingStatus(b))),
+    [jobs]
   );
 
-  const driverJobs = useMemo(
-    () =>
-      bookings.filter(
-        (b) =>
-          isActiveJobStatus(bookingStatus(b)) || isCompletedJobStatus(bookingStatus(b))
-      ),
-    [bookings]
+  const activeJobs = useMemo(
+    () => jobs.filter((b) => isActiveJobStatus(bookingStatus(b))),
+    [jobs]
+  );
+
+  const completedJobs = useMemo(
+    () => jobs.filter((b) => isCompletedJobStatus(bookingStatus(b))),
+    [jobs]
   );
 
   if (!token) {
@@ -504,12 +488,13 @@ export default function Customer() {
             <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-amber-200 bg-amber-50">
               <AlertTriangle className="text-amber-700" size={18} />
             </div>
+
             <div>
               <p className="text-sm font-semibold text-slate-900">
-                Please login to view your dashboard
+                Please login to view your driver dashboard
               </p>
               <p className="mt-1 text-sm text-slate-600">
-                Your dashboard needs an authenticated account.
+                Your dashboard needs an authenticated driver account.
               </p>
 
               <div className="mt-4 flex flex-wrap gap-2">
@@ -519,6 +504,7 @@ export default function Customer() {
                 >
                   Go to Login
                 </Link>
+
                 <Link
                   to="/"
                   className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
@@ -533,9 +519,9 @@ export default function Customer() {
     );
   }
 
-  const recentCustomerBookings = bookings.slice(0, 6);
-  const recentDriverRequests = driverRequests.slice(0, 6);
-  const recentDriverJobs = driverJobs.slice(0, 6);
+  const recentRequests = requests.slice(0, 6);
+  const recentActiveJobs = activeJobs.slice(0, 6);
+  const recentCompletedJobs = completedJobs.slice(0, 6);
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
@@ -549,9 +535,14 @@ export default function Customer() {
         >
           <div className="flex items-start justify-between gap-3">
             <div className="flex items-center gap-2">
-              {banner.type === "success" ? <BadgeCheck size={18} /> : <AlertTriangle size={18} />}
+              {banner.type === "success" ? (
+                <BadgeCheck size={18} />
+              ) : (
+                <AlertTriangle size={18} />
+              )}
               <span>{banner.message}</span>
             </div>
+
             <button
               type="button"
               onClick={() => setBanner(null)}
@@ -571,9 +562,7 @@ export default function Customer() {
                 Welcome, {profile.name} 👋
               </p>
               <p className="mt-1 text-sm text-slate-600">
-                {isDriverRole
-                  ? "Here are your assigned jobs and requests."
-                  : "Here are your booking details and current booking statuses."}
+                Here are your assigned requests, active jobs, and completed jobs.
               </p>
             </div>
 
@@ -592,11 +581,13 @@ export default function Customer() {
             <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
               <div className="flex items-center gap-2 text-slate-700">
                 <User size={16} />
-                <p className="text-xs font-semibold">{isDriverRole ? "Driver" : "Customer"}</p>
+                <p className="text-xs font-semibold">Driver</p>
               </div>
-              <p className="mt-2 truncate text-sm font-semibold text-slate-900">{profile.name}</p>
+              <p className="mt-2 truncate text-sm font-semibold text-slate-900">
+                {profile.name}
+              </p>
               <p className="text-xs text-slate-500">
-                {profile.id ? `Profile ID: ${profile.id}` : "Account profile"}
+                {profile.id ? `Profile ID: ${profile.id}` : "Driver account"}
               </p>
             </div>
 
@@ -605,7 +596,9 @@ export default function Customer() {
                 <Mail size={16} />
                 <p className="text-xs font-semibold">Email</p>
               </div>
-              <p className="mt-2 truncate text-sm font-semibold text-slate-900">{profile.email || "—"}</p>
+              <p className="mt-2 truncate text-sm font-semibold text-slate-900">
+                {profile.email || "—"}
+              </p>
               <p className="text-xs text-slate-500">Primary contact</p>
             </div>
 
@@ -614,7 +607,9 @@ export default function Customer() {
                 <Phone size={16} />
                 <p className="text-xs font-semibold">Phone</p>
               </div>
-              <p className="mt-2 truncate text-sm font-semibold text-slate-900">{profile.phone || "—"}</p>
+              <p className="mt-2 truncate text-sm font-semibold text-slate-900">
+                {profile.phone || "—"}
+              </p>
               <p className="text-xs text-slate-500">Contact number</p>
             </div>
 
@@ -623,41 +618,46 @@ export default function Customer() {
                 <BadgeCheck size={16} />
                 <p className="text-xs font-semibold">Status</p>
               </div>
-              <p className="mt-2 truncate text-sm font-semibold text-slate-900">{pretty(profile.status)}</p>
-              <p className="text-xs text-slate-500">Profile status</p>
+              <p className="mt-2 truncate text-sm font-semibold text-slate-900">
+                {pretty(profile.status)}
+              </p>
+              <p className="text-xs text-slate-500">
+                {profile.license_no
+                  ? `License: ${profile.license_no}`
+                  : "Driver profile status"}
+              </p>
             </div>
           </div>
         </div>
 
         <div className="rounded-2xl border border-slate-200 bg-white p-5">
-          <p className="text-sm font-semibold text-slate-900">
-            {isDriverRole ? "Driver Summary" : "Customer Summary"}
-          </p>
+          <p className="text-sm font-semibold text-slate-900">Driver Summary</p>
 
           <div className="mt-4 grid gap-3">
-            {isDriverRole ? (
-              <>
-                <StatCard icon={<ClipboardList size={16} />} label="Requests" value={driverStats.requests} />
-                <StatCard icon={<BriefcaseBusiness size={16} />} label="Active Jobs" value={driverStats.active} />
-                <StatCard icon={<CheckCircle2 size={16} />} label="Completed Jobs" value={driverStats.completed} />
-                <StatCard icon={<Clock3 size={16} />} label="All Jobs" value={driverStats.total} />
-              </>
-            ) : (
-              <>
-                <StatCard icon={<Car size={16} />} label="Total Bookings" value={customerStats.total} />
-                <StatCard icon={<CalendarDays size={16} />} label="Upcoming" value={customerStats.upcoming} />
-                <StatCard icon={<CreditCard size={16} />} label="Paid" value={customerStats.paid} />
-                <StatCard icon={<Clock3 size={16} />} label="Pending" value={customerStats.pending} />
-                <div className="pt-1">
-                  <Link
-                    to="/vehicles"
-                    className="inline-flex w-full items-center justify-center rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700"
-                  >
-                    Book a Vehicle
-                  </Link>
-                </div>
-              </>
-            )}
+            <StatCard
+              icon={<ClipboardList size={16} />}
+              label="Requests"
+              value={stats.requests}
+              hint="Pending or newly assigned requests"
+            />
+            <StatCard
+              icon={<BriefcaseBusiness size={16} />}
+              label="Active Jobs"
+              value={stats.active}
+              hint="Accepted or ongoing rides"
+            />
+            <StatCard
+              icon={<CheckCircle2 size={16} />}
+              label="Completed Jobs"
+              value={stats.completed}
+              hint="Finished rides"
+            />
+            <StatCard
+              icon={<Clock3 size={16} />}
+              label="All Jobs"
+              value={stats.total}
+              hint="All jobs from your account"
+            />
           </div>
         </div>
       </div>
@@ -667,7 +667,7 @@ export default function Customer() {
           <div className="flex items-start gap-2">
             <AlertTriangle size={18} />
             <div>
-              <p className="font-semibold">Could not load dashboard data</p>
+              <p className="font-semibold">Could not load driver dashboard data</p>
               <p className="mt-1">{error}</p>
             </div>
           </div>
@@ -677,7 +677,10 @@ export default function Customer() {
       {loading && (
         <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="rounded-2xl border border-slate-200 bg-white p-4">
+            <div
+              key={i}
+              className="rounded-2xl border border-slate-200 bg-white p-4"
+            >
               <div className="h-4 w-2/3 animate-pulse rounded bg-slate-100" />
               <div className="mt-3 h-3 w-1/2 animate-pulse rounded bg-slate-100" />
               <div className="mt-4 h-10 w-full animate-pulse rounded-xl bg-slate-100" />
@@ -686,65 +689,22 @@ export default function Customer() {
         </div>
       )}
 
-      {!loading && isCustomerRole && (
-        <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-5">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="text-sm font-semibold text-slate-900">My Booking Information</p>
-              <p className="mt-1 text-sm text-slate-600">
-                These are only your own bookings from the secure <code>/bookings/me</code> route.
-              </p>
-            </div>
-
-            <Link
-              to="/customer/bookings"
-              className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-            >
-              View all
-            </Link>
-          </div>
-
-          {recentCustomerBookings.length === 0 ? (
-            <div className="mt-4">
-              <EmptyState
-                title="No bookings yet"
-                text="When you book a vehicle, it will appear here."
-                action={
-                  <Link
-                    to="/vehicles"
-                    className="inline-flex items-center justify-center rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700"
-                  >
-                    Browse Vehicles
-                  </Link>
-                }
-              />
-            </div>
-          ) : (
-            <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {recentCustomerBookings.map((b) => (
-                <BookingCard key={String(bookingCode(b))} item={b} mode="customer" />
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {!loading && isDriverRole && (
-        <div className="mt-6 grid gap-6 xl:grid-cols-2">
+      {!loading && (
+        <div className="mt-6 grid gap-6 xl:grid-cols-3">
           <div className="rounded-2xl border border-slate-200 bg-white p-5">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="text-sm font-semibold text-slate-900">My Requests</p>
                 <p className="mt-1 text-sm text-slate-600">
-                  These are only your own pending requests from the secure <code>/bookings/me</code> route.
+                  New and pending requests assigned to you.
                 </p>
               </div>
               <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">
-                {driverStats.requests} request(s)
+                {stats.requests} request(s)
               </span>
             </div>
 
-            {recentDriverRequests.length === 0 ? (
+            {recentRequests.length === 0 ? (
               <div className="mt-4">
                 <EmptyState
                   title="No pending requests"
@@ -753,8 +713,8 @@ export default function Customer() {
               </div>
             ) : (
               <div className="mt-4 grid gap-3">
-                {recentDriverRequests.map((b) => (
-                  <BookingCard key={String(bookingCode(b))} item={b} mode="driver" />
+                {recentRequests.map((item) => (
+                  <JobCard key={String(bookingCode(item))} item={item} />
                 ))}
               </div>
             )}
@@ -763,30 +723,110 @@ export default function Customer() {
           <div className="rounded-2xl border border-slate-200 bg-white p-5">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <p className="text-sm font-semibold text-slate-900">My Jobs</p>
+                <p className="text-sm font-semibold text-slate-900">Active Jobs</p>
                 <p className="mt-1 text-sm text-slate-600">
-                  Only your own active and completed jobs are shown here.
+                  Jobs you are currently handling.
                 </p>
               </div>
               <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
-                {driverStats.active} active
+                {stats.active} active
               </span>
             </div>
 
-            {recentDriverJobs.length === 0 ? (
+            {recentActiveJobs.length === 0 ? (
               <div className="mt-4">
                 <EmptyState
-                  title="No jobs yet"
-                  text="Assigned jobs will appear here once bookings are linked to your driver account."
+                  title="No active jobs"
+                  text="Accepted or ongoing jobs will appear here."
                 />
               </div>
             ) : (
               <div className="mt-4 grid gap-3">
-                {recentDriverJobs.map((b) => (
-                  <BookingCard key={String(bookingCode(b))} item={b} mode="driver" />
+                {recentActiveJobs.map((item) => (
+                  <JobCard key={String(bookingCode(item))} item={item} />
                 ))}
               </div>
             )}
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-white p-5">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold text-slate-900">
+                  Completed Jobs
+                </p>
+                <p className="mt-1 text-sm text-slate-600">
+                  Jobs you already finished.
+                </p>
+              </div>
+              <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
+                {stats.completed} completed
+              </span>
+            </div>
+
+            {recentCompletedJobs.length === 0 ? (
+              <div className="mt-4">
+                <EmptyState
+                  title="No completed jobs"
+                  text="Finished jobs will appear here."
+                />
+              </div>
+            ) : (
+              <div className="mt-4 grid gap-3">
+                {recentCompletedJobs.map((item) => (
+                  <JobCard key={String(bookingCode(item))} item={item} />
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {!loading && (
+        <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-5">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold text-slate-900">
+                Quick Driver Actions
+              </p>
+              <p className="mt-1 text-sm text-slate-600">
+                Fast links for common driver tasks.
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <Link
+              to="/driver/requests"
+              className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-white hover:shadow-sm"
+            >
+              <ClipboardList size={16} />
+              My Requests
+            </Link>
+
+            <Link
+              to="/driver/jobs"
+              className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-white hover:shadow-sm"
+            >
+              <BriefcaseBusiness size={16} />
+              My Jobs
+            </Link>
+
+            <Link
+              to="/driver/profile"
+              className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-white hover:shadow-sm"
+            >
+              <User size={16} />
+              Profile
+            </Link>
+
+            <Link
+              to="/vehicles"
+              className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-white hover:shadow-sm"
+            >
+              <CarFront size={16} />
+              Vehicles
+            </Link>
           </div>
         </div>
       )}

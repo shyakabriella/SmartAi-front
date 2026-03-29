@@ -1,5 +1,5 @@
-// src/pages/owner/Owner.jsx
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 /* ---------------- helpers ---------------- */
 function safeParse(s) {
@@ -76,27 +76,87 @@ function pickDailyRate(v) {
   );
 }
 
+function getVehicleImage(v) {
+  if (typeof v?.image_url === "string" && v.image_url.trim()) return v.image_url;
+  if (typeof v?.primary_image_url === "string" && v.primary_image_url.trim()) {
+    return v.primary_image_url;
+  }
+
+  if (Array.isArray(v?.images) && v.images.length > 0) {
+    const first = v.images[0];
+    return first?.url || first?.image_url || first?.path || "";
+  }
+
+  if (Array.isArray(v?.media) && v.media.length > 0) {
+    const first = v.media[0];
+    if (typeof first === "string") return first;
+    return first?.url || first?.image_url || first?.path || "";
+  }
+
+  return "";
+}
+
 function statusBadge(status) {
   const base =
-    "inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium";
+    "inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold border";
 
   const s = String(status || "").toLowerCase();
 
   if (s === "available" || s === "in_service" || s === "live") {
-    return `${base} bg-emerald-50 text-emerald-700`;
+    return `${base} bg-emerald-50 text-emerald-700 border-emerald-200`;
   }
   if (s === "booked" || s === "confirmed" || s === "pending") {
-    return `${base} bg-amber-50 text-amber-700`;
+    return `${base} bg-amber-50 text-amber-700 border-amber-200`;
   }
   if (s === "maintenance") {
-    return `${base} bg-rose-50 text-rose-700`;
+    return `${base} bg-rose-50 text-rose-700 border-rose-200`;
   }
-  return `${base} bg-slate-100 text-slate-600`;
+  return `${base} bg-slate-100 text-slate-600 border-slate-200`;
+}
+
+function profileCompletion(showroom) {
+  if (!showroom) return 18;
+  const fields = [
+    showroom?.name,
+    showroom?.address || showroom?.location,
+    showroom?.phone,
+    showroom?.email,
+    showroom?.lat,
+    showroom?.lng,
+  ];
+  return Math.min(
+    100,
+    Math.max(18, Math.round((fields.filter(Boolean).length / fields.length) * 100))
+  );
+}
+
+function MiniKpi({ label, value, tone = "bg-slate-900" }) {
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <div className="text-[11px] uppercase tracking-[0.16em] text-slate-400">
+            {label}
+          </div>
+          <div className="mt-1 text-lg font-semibold text-slate-900">{value}</div>
+        </div>
+        <div className={`h-8 w-8 rounded-xl ${tone}`} />
+      </div>
+    </div>
+  );
 }
 
 /* ---------------- component ---------------- */
 export default function Owner() {
-  const API = import.meta.env.VITE_API_URL || `${window.location.origin}/api`;
+  const nav = useNavigate();
+
+  const API = useMemo(() => {
+    const raw =
+      (import.meta.env.VITE_API_URL || `${window.location.origin}/api`)
+        .trim()
+        .replace(/\/+$/, "");
+    return raw || "/api";
+  }, []);
 
   const user = useMemo(() => {
     return (
@@ -115,7 +175,9 @@ export default function Owner() {
   const [loadingVehicles, setLoadingVehicles] = useState(true);
   const [vehiclesErr, setVehiclesErr] = useState("");
 
-  /* ---------------- Showroom profile modal ---------------- */
+  const [showroomSummary, setShowroomSummary] = useState(null);
+  const [loadingShowroomSummary, setLoadingShowroomSummary] = useState(true);
+
   const [profileOpen, setProfileOpen] = useState(false);
   const [savingProfile, setSavingProfile] = useState(false);
   const [loadingProfile, setLoadingProfile] = useState(false);
@@ -124,13 +186,12 @@ export default function Owner() {
 
   const [showroomName, setShowroomName] = useState("");
   const [showroomAddress, setShowroomAddress] = useState("");
-  const [showroomLat, setShowroomLat] = useState(""); // hidden
-  const [showroomLng, setShowroomLng] = useState(""); // hidden
+  const [showroomLat, setShowroomLat] = useState("");
+  const [showroomLng, setShowroomLng] = useState("");
 
   const [logoFile, setLogoFile] = useState(null);
   const [permitPdf, setPermitPdf] = useState(null);
 
-  // Google places + map refs
   const locationInputRef = useRef(null);
   const autoRef = useRef(null);
 
@@ -139,7 +200,6 @@ export default function Owner() {
   const markerRef = useRef(null);
   const geocoderRef = useRef(null);
 
-  // ✅ Load Google Maps JS (Places + Maps)
   useEffect(() => {
     const key = import.meta.env.VITE_GOOGLE_MAPS_KEY;
     if (!key) return;
@@ -158,7 +218,6 @@ export default function Owner() {
     document.head.appendChild(s);
   }, []);
 
-  // ✅ Create map when modal open
   useEffect(() => {
     if (!profileOpen) return;
 
@@ -169,7 +228,7 @@ export default function Owner() {
       if (!mapDivRef.current) return false;
 
       if (!mapRef.current) {
-        const defaultCenter = { lat: -1.9441, lng: 30.0619 }; // Kigali
+        const defaultCenter = { lat: -1.9441, lng: 30.0619 };
 
         mapRef.current = new window.google.maps.Map(mapDivRef.current, {
           center: defaultCenter,
@@ -201,13 +260,9 @@ export default function Owner() {
     };
   }, [profileOpen]);
 
-  // ✅ Auto-load current location (GPS) when modal opens
   useEffect(() => {
     if (!profileOpen) return;
-
-    // If profile already has coordinates, don’t override it
     if (showroomLat && showroomLng) return;
-
     if (!navigator.geolocation) return;
 
     navigator.geolocation.getCurrentPosition(
@@ -217,14 +272,12 @@ export default function Owner() {
         setShowroomLat(String(p.lat));
         setShowroomLng(String(p.lng));
 
-        // Move map
         if (mapRef.current) {
           mapRef.current.setCenter(p);
           mapRef.current.setZoom(15);
         }
         if (markerRef.current) markerRef.current.setPosition(p);
 
-        // Reverse geocode to fill address
         const geocoder = geocoderRef.current;
         if (geocoder) {
           geocoder.geocode({ location: p }, (results, status) => {
@@ -234,14 +287,11 @@ export default function Owner() {
           });
         }
       },
-      () => {
-        // ignore if user blocks location
-      },
+      () => {},
       { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }
     );
   }, [profileOpen, showroomLat, showroomLng]);
 
-  // ✅ init autocomplete when modal open
   useEffect(() => {
     if (!profileOpen) return;
 
@@ -302,7 +352,45 @@ export default function Owner() {
     };
   }, [profileOpen]);
 
-  // ✅ Load showroom profile when modal opens
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    const controller = new AbortController();
+
+    async function fetchSummary() {
+      setLoadingShowroomSummary(true);
+
+      try {
+        if (!token) return;
+
+        const res = await fetch(`${API}/showroom/profile`, {
+          signal: controller.signal,
+          headers: {
+            Accept: "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        if (res.status === 404) {
+          setShowroomSummary(null);
+          return;
+        }
+
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok) return;
+
+        const p = json?.data || null;
+        setShowroomSummary(p || null);
+      } catch {
+        setShowroomSummary(null);
+      } finally {
+        setLoadingShowroomSummary(false);
+      }
+    }
+
+    fetchSummary();
+    return () => controller.abort();
+  }, [API]);
+
   useEffect(() => {
     if (!profileOpen) return;
 
@@ -372,7 +460,6 @@ export default function Owner() {
     return () => controller.abort();
   }, [profileOpen, API]);
 
-  // ✅ Load showroom vehicles
   useEffect(() => {
     const token = localStorage.getItem("token");
     const controller = new AbortController();
@@ -449,7 +536,6 @@ export default function Owner() {
     return () => controller.abort();
   }, [API, ownerId]);
 
-  // KPI stats
   const vehicleStats = useMemo(() => {
     const stats = {
       total: vehicles.length,
@@ -457,6 +543,7 @@ export default function Owner() {
       in_service: 0,
       booked: 0,
       maintenance: 0,
+      inactive: 0,
       other: 0,
     };
 
@@ -467,47 +554,35 @@ export default function Owner() {
       else if (s === "in_service") stats.in_service++;
       else if (s === "booked") stats.booked++;
       else if (s === "maintenance") stats.maintenance++;
+      else if (s === "inactive") stats.inactive++;
       else stats.other++;
     }
 
     stats.live = stats.available + stats.in_service;
+    stats.recent = vehicles.slice(0, 5);
+    stats.top = vehicles.slice(0, 4);
     return stats;
   }, [vehicles]);
 
-  const kpis = useMemo(() => {
-    return [
-      {
-        label: "Total Vehicles",
-        value: String(vehicleStats.total),
-        hint: "Cars saved in your showroom",
-        accent: "bg-slate-900",
-      },
-      {
-        label: "Vehicles Live",
-        value: `${vehicleStats.live} / ${vehicleStats.total}`,
-        hint: "Available & in service",
-        accent: "bg-emerald-500",
-      },
-      {
-        label: "Booked Cars",
-        value: String(vehicleStats.booked),
-        hint: "Currently booked",
-        accent: "bg-amber-500",
-      },
-      {
-        label: "Maintenance",
-        value: String(vehicleStats.maintenance),
-        hint: "Not available now",
-        accent: "bg-rose-500",
-      },
-    ];
-  }, [vehicleStats]);
+  const completion = profileCompletion(showroomSummary);
 
   function openProfileModal() {
     setProfileErr("");
     setProfileOk("");
     setLogoFile(null);
     setPermitPdf(null);
+
+    if (showroomSummary) {
+      setShowroomName(showroomSummary?.name || "");
+      setShowroomAddress(showroomSummary?.address || showroomSummary?.location || "");
+      setShowroomLat(
+        showroomSummary?.lat != null ? String(showroomSummary.lat) : ""
+      );
+      setShowroomLng(
+        showroomSummary?.lng != null ? String(showroomSummary.lng) : ""
+      );
+    }
+
     setProfileOpen(true);
   }
 
@@ -569,6 +644,18 @@ export default function Owner() {
         );
       }
 
+      const saved = json?.data || {
+        name: showroomName.trim(),
+        address: showroomAddress.trim(),
+        lat: showroomLat,
+        lng: showroomLng,
+      };
+
+      setShowroomSummary((prev) => ({
+        ...(prev || {}),
+        ...saved,
+      }));
+
       setProfileOk("✅ Showroom profile updated successfully.");
       setTimeout(() => setProfileOpen(false), 700);
     } catch (e) {
@@ -579,315 +666,475 @@ export default function Owner() {
   }
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-6 space-y-6">
-      {/* header */}
-      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold text-slate-900">
-            Owner Dashboard
-          </h1>
-          <p className="text-sm text-slate-500">Monitor your cars in one place.</p>
-        </div>
+    <div className="min-h-screen bg-[#f6f8fc] px-4 py-5 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-7xl space-y-5">
+        <section className="rounded-[28px] border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+            <div className="flex items-center gap-4">
+              <div className="grid h-14 w-14 place-items-center rounded-2xl bg-slate-900 text-sm font-semibold text-white">
+                {initials(displayName || email)}
+              </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-2">
-            <div className="h-9 w-9 rounded-full bg-slate-900 text-white grid place-items-center text-xs font-semibold">
-              {initials(displayName || email)}
+              <div>
+                <h1 className="text-2xl font-semibold text-slate-900">
+                  Owner Dashboard
+                </h1>
+                <p className="mt-1 text-sm text-slate-500">
+                  Compact operations view for showroom activity and vehicle status.
+                </p>
+              </div>
             </div>
 
-            <div className="leading-tight">
-              <div className="flex items-center gap-2">
-                <p className="text-sm font-semibold text-slate-900 truncate max-w-[180px]">
-                  {displayName}
-                </p>
-                <span className="text-[11px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200">
-                  {String(role).toLowerCase()}
-                </span>
-              </div>
-
-              {email ? (
-                <p className="text-[11px] text-slate-500 truncate max-w-[220px]">
-                  {email}
-                </p>
-              ) : (
-                <p className="text-[11px] text-slate-400">Not logged in</p>
-              )}
+            <div className="flex flex-wrap gap-2">
+              <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700">
+                {String(role).toLowerCase()}
+              </span>
+              <button
+                onClick={() => nav("/owner/showroom")}
+                className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+              >
+                Open showroom
+              </button>
+              <button
+                onClick={openProfileModal}
+                className="rounded-2xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800"
+              >
+                Update profile
+              </button>
             </div>
           </div>
+        </section>
 
-          <button
-            onClick={openProfileModal}
-            className="inline-flex items-center h-10 rounded-lg bg-slate-900 px-4 text-sm font-semibold text-white shadow-sm hover:bg-slate-800"
-          >
-            🏢 Update Showroom Profile
-          </button>
-        </div>
-      </div>
+        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+          <MiniKpi label="Vehicles" value={vehicleStats.total} tone="bg-slate-900" />
+          <MiniKpi label="Live" value={vehicleStats.live} tone="bg-emerald-500" />
+          <MiniKpi label="Booked" value={vehicleStats.booked} tone="bg-amber-500" />
+          <MiniKpi label="Maintenance" value={vehicleStats.maintenance} tone="bg-rose-500" />
+          <MiniKpi label="Completion" value={`${completion}%`} tone="bg-blue-500" />
+        </section>
 
-      {/* KPI cards */}
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {loadingVehicles
-          ? Array.from({ length: 4 }).map((_, i) => (
-              <div
-                key={i}
-                className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm shadow-slate-900/5 animate-pulse"
-              >
-                <div className="h-4 w-28 bg-slate-100 rounded" />
-                <div className="mt-3 h-7 w-16 bg-slate-100 rounded" />
-                <div className="mt-2 h-3 w-40 bg-slate-100 rounded" />
-              </div>
-            ))
-          : kpis.map((card) => (
-              <div
-                key={card.label}
-                className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm shadow-slate-900/5"
-              >
-                <div className="flex items-center gap-3">
-                  <div className={`h-9 w-9 rounded-lg ${card.accent}`} />
-                  <div>
-                    <p className="text-xs font-medium text-slate-500">
-                      {card.label}
-                    </p>
-                    <p className="mt-0.5 text-[11px] text-slate-400">
-                      {card.hint}
-                    </p>
-                  </div>
-                </div>
-                <div className="mt-3 text-2xl font-semibold text-slate-900">
-                  {card.value}
-                </div>
-              </div>
-            ))}
-      </div>
-
-      {/* vehicles table */}
-      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
-        <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
-          <div>
-            <h2 className="text-sm font-semibold text-slate-900">My Vehicles</h2>
-            <p className="text-xs text-slate-500">
-              Only vehicles saved in your showroom appear here.
-            </p>
-          </div>
-        </div>
-
-        {vehiclesErr && (
-          <div className="px-4 py-3 text-sm text-rose-700 bg-rose-50 border-b border-rose-100">
-            {vehiclesErr}
-          </div>
-        )}
-
-        <div className="overflow-x-auto">
-          <table className="min-w-full text-sm">
-            <thead>
-              <tr className="bg-slate-50 text-left text-xs font-medium text-slate-500">
-                <th className="px-4 py-2">Vehicle</th>
-                <th className="px-4 py-2">Car Type</th>
-                <th className="px-4 py-2">Status</th>
-                <th className="px-4 py-2">Daily Rate</th>
-              </tr>
-            </thead>
-
-            <tbody>
-              {loadingVehicles ? (
-                Array.from({ length: 4 }).map((_, i) => (
-                  <tr key={i} className="border-t border-slate-100">
-                    <td className="px-4 py-3">
-                      <div className="h-4 w-40 rounded bg-slate-100 animate-pulse" />
-                      <div className="mt-2 h-3 w-28 rounded bg-slate-100 animate-pulse" />
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="h-4 w-24 rounded bg-slate-100 animate-pulse" />
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="h-5 w-16 rounded bg-slate-100 animate-pulse" />
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="h-4 w-24 rounded bg-slate-100 animate-pulse" />
-                    </td>
-                  </tr>
-                ))
-              ) : vehicles.length > 0 ? (
-                vehicles.map((v) => (
-                  <tr key={v.id} className="border-t border-slate-100">
-                    <td className="px-4 py-2">
-                      <div className="flex flex-col">
-                        <span className="text-sm font-medium text-slate-900">
-                          {vehicleName(v)}
-                        </span>
-                        <span className="text-xs text-slate-500">
-                          {vehiclePlate(v)} • ID: {v.id}
-                        </span>
-                      </div>
-                    </td>
-
-                    <td className="px-4 py-2 text-xs text-slate-600">
-                      {vehicleCategory(v)}
-                    </td>
-
-                    <td className="px-4 py-2">
-                      <span className={statusBadge(v.status)}>
-                        {v.status || "unknown"}
-                      </span>
-                    </td>
-
-                    <td className="px-4 py-2 text-sm text-slate-800">
-                      {formatRWF(pickDailyRate(v))}
-                    </td>
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td
-                    colSpan={4}
-                    className="px-4 py-6 text-center text-sm text-slate-500"
-                  >
-                    You don&apos;t have any vehicles yet.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* ✅ MODAL */}
-      {profileOpen && (
-        <div className="fixed inset-0 z-50">
-          <div
-            className="absolute inset-0 bg-black/40"
-            onClick={() => !savingProfile && setProfileOpen(false)}
-          />
-          <div className="absolute inset-0 flex items-center justify-center p-4">
-            <div className="w-full max-w-2xl rounded-3xl bg-white shadow-2xl overflow-hidden">
-              <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between">
+        <section className="grid gap-5 xl:grid-cols-[1.2fr_0.8fr]">
+          <div className="space-y-5">
+            <div className="rounded-[28px] border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="flex items-center justify-between gap-3">
                 <div>
-                  <h3 className="text-sm font-semibold text-slate-900">
-                    Update Showroom Profile
-                  </h3>
-                  <p className="text-xs text-slate-500">
-                    Location auto-loads (GPS) and you can search to change it.
-                  </p>
+                  <div className="text-[11px] uppercase tracking-[0.16em] text-blue-500">
+                    Inventory snapshot
+                  </div>
+                  <h2 className="mt-1 text-lg font-semibold text-slate-900">
+                    Recent vehicles
+                  </h2>
                 </div>
 
                 <button
-                  className="h-9 w-9 rounded-full hover:bg-slate-100 grid place-items-center"
-                  onClick={() => !savingProfile && setProfileOpen(false)}
-                  aria-label="close"
+                  onClick={() => nav("/owner/vehicles")}
+                  className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
                 >
-                  ✕
+                  Manage all
                 </button>
               </div>
 
-              <div className="p-5 space-y-4">
+              {vehiclesErr && (
+                <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                  {vehiclesErr}
+                </div>
+              )}
+
+              <div className="mt-4 space-y-3">
+                {loadingVehicles ? (
+                  Array.from({ length: 5 }).map((_, i) => (
+                    <div
+                      key={i}
+                      className="h-16 animate-pulse rounded-2xl border border-slate-200 bg-slate-50"
+                    />
+                  ))
+                ) : vehicleStats.recent.length > 0 ? (
+                  vehicleStats.recent.map((v) => (
+                    <div
+                      key={v.id}
+                      className="grid grid-cols-[1fr_auto] items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3"
+                    >
+                      <div className="min-w-0">
+                        <div className="truncate text-sm font-semibold text-slate-900">
+                          {vehicleName(v)}
+                        </div>
+                        <div className="mt-1 truncate text-xs text-slate-500">
+                          {vehiclePlate(v)} • {vehicleCategory(v)}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-3">
+                        <div className="hidden text-right sm:block">
+                          <div className="text-[11px] uppercase tracking-[0.14em] text-slate-400">
+                            / Day
+                          </div>
+                          <div className="mt-1 text-sm font-semibold text-slate-900">
+                            {formatRWF(pickDailyRate(v))}
+                          </div>
+                        </div>
+                        <span className={statusBadge(v.status)}>{v.status || "unknown"}</span>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center text-sm text-slate-500">
+                    No vehicles yet.
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="rounded-[28px] border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="text-[11px] uppercase tracking-[0.16em] text-blue-500">
+                Highlight cards
+              </div>
+              <h2 className="mt-1 text-lg font-semibold text-slate-900">
+                Quick preview
+              </h2>
+
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                {loadingVehicles
+                  ? Array.from({ length: 4 }).map((_, i) => (
+                      <div
+                        key={i}
+                        className="h-40 animate-pulse rounded-3xl border border-slate-200 bg-slate-50"
+                      />
+                    ))
+                  : vehicleStats.top.map((v) => {
+                      const img = getVehicleImage(v);
+                      return (
+                        <div
+                          key={v.id}
+                          className="overflow-hidden rounded-3xl border border-slate-200 bg-white"
+                        >
+                          <div className="relative h-28 bg-gradient-to-br from-slate-900 via-slate-800 to-blue-900">
+                            {img ? (
+                              <img
+                                src={img}
+                                alt={vehicleName(v)}
+                                className="h-full w-full object-cover"
+                              />
+                            ) : (
+                              <div className="grid h-full place-items-center text-2xl text-white">
+                                🚗
+                              </div>
+                            )}
+
+                            <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-3">
+                              <div className="truncate text-sm font-semibold text-white">
+                                {vehicleName(v)}
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="p-3">
+                            <div className="flex items-center justify-between gap-3">
+                              <span className="truncate text-xs text-slate-500">
+                                {vehiclePlate(v)}
+                              </span>
+                              <span className={statusBadge(v.status)}>
+                                {v.status || "unknown"}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-5">
+            <div className="rounded-[28px] border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="text-[11px] uppercase tracking-[0.16em] text-blue-500">
+                Showroom profile
+              </div>
+              <h2 className="mt-1 text-lg font-semibold text-slate-900">
+                Business summary
+              </h2>
+
+              <div className="mt-4 rounded-3xl bg-slate-900 p-4 text-white">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <div className="text-[11px] uppercase tracking-[0.16em] text-white/60">
+                      Completion
+                    </div>
+                    <div className="mt-2 text-3xl font-semibold">{completion}%</div>
+                  </div>
+
+                  <div className="grid h-14 w-14 place-items-center rounded-2xl bg-white/10 text-sm font-semibold">
+                    {initials(showroomSummary?.name || displayName)}
+                  </div>
+                </div>
+
+                <div className="mt-4 h-2.5 overflow-hidden rounded-full bg-white/10">
+                  <div
+                    className="h-full rounded-full bg-white"
+                    style={{ width: `${completion}%` }}
+                  />
+                </div>
+              </div>
+
+              <div className="mt-4 space-y-3">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                  <div className="text-[11px] uppercase tracking-[0.14em] text-slate-400">
+                    Showroom
+                  </div>
+                  <div className="mt-1 text-sm font-semibold text-slate-900">
+                    {loadingShowroomSummary
+                      ? "Loading..."
+                      : showroomSummary?.name || "Not added"}
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                  <div className="text-[11px] uppercase tracking-[0.14em] text-slate-400">
+                    Address
+                  </div>
+                  <div className="mt-1 text-sm font-semibold text-slate-900">
+                    {loadingShowroomSummary
+                      ? "Loading..."
+                      : showroomSummary?.address || "Not added"}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                    <div className="text-[11px] uppercase tracking-[0.14em] text-slate-400">
+                      Phone
+                    </div>
+                    <div className="mt-1 text-sm font-semibold text-slate-900">
+                      {showroomSummary?.phone || "Not added"}
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                    <div className="text-[11px] uppercase tracking-[0.14em] text-slate-400">
+                      Email
+                    </div>
+                    <div className="mt-1 truncate text-sm font-semibold text-slate-900">
+                      {showroomSummary?.email || email || "Not added"}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-[28px] border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="text-[11px] uppercase tracking-[0.16em] text-blue-500">
+                Status mix
+              </div>
+              <h2 className="mt-1 text-lg font-semibold text-slate-900">
+                Vehicle health
+              </h2>
+
+              <div className="mt-4 space-y-4">
+                {[
+                  {
+                    label: "Available",
+                    value: vehicleStats.available,
+                    color: "bg-emerald-500",
+                  },
+                  {
+                    label: "In service",
+                    value: vehicleStats.in_service,
+                    color: "bg-blue-500",
+                  },
+                  {
+                    label: "Booked",
+                    value: vehicleStats.booked,
+                    color: "bg-amber-500",
+                  },
+                  {
+                    label: "Maintenance",
+                    value: vehicleStats.maintenance,
+                    color: "bg-rose-500",
+                  },
+                ].map((item) => {
+                  const percent =
+                    vehicleStats.total > 0
+                      ? Math.round((item.value / vehicleStats.total) * 100)
+                      : 0;
+
+                  return (
+                    <div key={item.label}>
+                      <div className="mb-2 flex items-center justify-between text-sm">
+                        <span className="font-medium text-slate-700">{item.label}</span>
+                        <span className="text-slate-500">
+                          {item.value} ({percent}%)
+                        </span>
+                      </div>
+                      <div className="h-2.5 overflow-hidden rounded-full bg-slate-100">
+                        <div
+                          className={`h-full rounded-full ${item.color}`}
+                          style={{ width: `${percent}%` }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="mt-5 flex flex-col gap-2">
+                <button
+                  onClick={() => nav("/owner/vehicles")}
+                  className="rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
+                >
+                  Manage vehicles
+                </button>
+                <button
+                  onClick={() => nav("/owner/showroom")}
+                  className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+                >
+                  Visit showroom page
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      {profileOpen && (
+        <div className="fixed inset-0 z-50">
+          <div
+            className="absolute inset-0 bg-slate-950/55 backdrop-blur-sm"
+            onClick={() => !savingProfile && setProfileOpen(false)}
+          />
+          <div className="absolute inset-0 flex items-center justify-center p-4">
+            <div className="w-full max-w-3xl overflow-hidden rounded-[30px] border border-slate-200 bg-white shadow-2xl">
+              <div className="border-b border-slate-200 bg-slate-900 px-6 py-5 text-white">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <h3 className="text-lg font-semibold">Update Showroom Profile</h3>
+                    <p className="mt-1 text-sm text-slate-300">
+                      Compact modal with location, map, logo, and permit upload.
+                    </p>
+                  </div>
+
+                  <button
+                    className="grid h-10 w-10 place-items-center rounded-full border border-white/15 bg-white/10 text-white transition hover:bg-white/15"
+                    onClick={() => !savingProfile && setProfileOpen(false)}
+                    aria-label="close"
+                  >
+                    ✕
+                  </button>
+                </div>
+              </div>
+
+              <div className="max-h-[75vh] overflow-y-auto p-6">
                 {loadingProfile && (
-                  <div className="text-sm text-slate-500">Loading profile…</div>
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                    Loading profile…
+                  </div>
                 )}
 
                 {profileErr && (
-                  <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                  <div className="mb-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
                     {profileErr}
                   </div>
                 )}
 
                 {profileOk && (
-                  <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                  <div className="mb-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
                     {profileOk}
                   </div>
                 )}
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
                   <div>
-                    <label className="block text-xs font-medium text-slate-600">
+                    <label className="block text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
                       Showroom name
                     </label>
                     <input
                       value={showroomName}
                       onChange={(e) => setShowroomName(e.target.value)}
-                      className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                      className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-100"
                       placeholder="e.g. SmartCar Showroom"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-xs font-medium text-slate-600">
-                      Location (Google search)
+                    <label className="block text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+                      Location
                     </label>
                     <input
                       ref={locationInputRef}
                       value={showroomAddress}
                       onChange={(e) => setShowroomAddress(e.target.value)}
-                      className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
-                      placeholder="Start typing location..."
+                      className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-100"
+                      placeholder="Start typing showroom location..."
                     />
                   </div>
                 </div>
 
-                {/* ✅ SMALLER MAP */}
-                <div className="rounded-2xl border border-slate-200 overflow-hidden">
-                  <div ref={mapDivRef} className="w-full h-[200px] bg-slate-100" />
+                <div className="mt-5 overflow-hidden rounded-[24px] border border-slate-200">
+                  <div ref={mapDivRef} className="h-[220px] w-full bg-slate-100" />
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="mt-5 grid grid-cols-1 gap-5 sm:grid-cols-2">
                   <div>
-                    <label className="block text-xs font-medium text-slate-600">
-                      Owner logo (image)
+                    <label className="block text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+                      Owner logo
                     </label>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={(e) => setLogoFile(e.target.files?.[0] || null)}
-                      className="mt-1 w-full text-sm"
-                    />
-                    {logoFile && (
-                      <div className="mt-1 text-[11px] text-slate-500">
-                        Selected: {logoFile.name}
-                      </div>
-                    )}
+                    <div className="mt-2 rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-4">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => setLogoFile(e.target.files?.[0] || null)}
+                        className="w-full text-sm text-slate-700"
+                      />
+                      {logoFile && (
+                        <div className="mt-2 text-xs text-slate-500">
+                          Selected: {logoFile.name}
+                        </div>
+                      )}
+                    </div>
                   </div>
 
                   <div>
-                    <label className="block text-xs font-medium text-slate-600">
-                      Working permission (PDF)
+                    <label className="block text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+                      Working permission PDF
                     </label>
-                    <input
-                      type="file"
-                      accept="application/pdf"
-                      onChange={(e) => setPermitPdf(e.target.files?.[0] || null)}
-                      className="mt-1 w-full text-sm"
-                    />
-                    {permitPdf && (
-                      <div className="mt-1 text-[11px] text-slate-500">
-                        Selected: {permitPdf.name}
-                      </div>
-                    )}
+                    <div className="mt-2 rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-4">
+                      <input
+                        type="file"
+                        accept="application/pdf"
+                        onChange={(e) => setPermitPdf(e.target.files?.[0] || null)}
+                        className="w-full text-sm text-slate-700"
+                      />
+                      {permitPdf && (
+                        <div className="mt-2 text-xs text-slate-500">
+                          Selected: {permitPdf.name}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
 
-                <div className="text-[11px] text-slate-500">
+                <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600">
                   {showroomLat && showroomLng ? (
                     <span>
-                      📍 Point: {Number(showroomLat).toFixed(5)},{" "}
+                      📍 Selected point: {Number(showroomLat).toFixed(5)},{" "}
                       {Number(showroomLng).toFixed(5)}
                     </span>
                   ) : (
-                    <span>📍 Choose a location to set the marker.</span>
+                    <span>📍 Choose a location to set the showroom marker.</span>
                   )}
                 </div>
               </div>
 
-              <div className="px-5 py-4 border-t border-slate-200 flex items-center justify-end gap-2">
+              <div className="flex items-center justify-end gap-3 border-t border-slate-200 bg-slate-50 px-6 py-4">
                 <button
                   onClick={() => setProfileOpen(false)}
                   disabled={savingProfile}
-                  className="h-10 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+                  className="rounded-2xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 disabled:opacity-60"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={saveProfile}
                   disabled={savingProfile}
-                  className="h-10 rounded-xl bg-slate-900 px-4 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-60"
+                  className="rounded-2xl bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-60"
                 >
                   {savingProfile ? "Saving..." : "Save profile"}
                 </button>

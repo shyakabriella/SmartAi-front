@@ -16,10 +16,16 @@ const FALLBACK_IMG =
   "data:image/svg+xml;charset=UTF-8," +
   encodeURIComponent(`
   <svg xmlns="http://www.w3.org/2000/svg" width="900" height="500">
-    <rect width="100%" height="100%" fill="#f1f5f9"/>
+    <defs>
+      <linearGradient id="g" x1="0" x2="1" y1="0" y2="1">
+        <stop offset="0%" stop-color="#f8fafc"/>
+        <stop offset="100%" stop-color="#e2e8f0"/>
+      </linearGradient>
+    </defs>
+    <rect width="100%" height="100%" fill="url(#g)"/>
     <text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle"
       font-family="Arial" font-size="22" fill="#64748b">
-      No image
+      No image available
     </text>
   </svg>`);
 
@@ -40,10 +46,7 @@ function normalizeRelativePath(u) {
   if (!u) return "";
   let p = String(u).trim();
 
-  // remove domain if mistakenly included
   p = p.replace(/^https?:\/\/[^/]+/i, "");
-
-  // laravel common variants → /storage/...
   p = p.replace(/^\/?storage\/app\/public\//i, "/storage/");
   p = p.replace(/^\/?public\/storage\//i, "/storage/");
   p = p.replace(/^\/?public\//i, "/");
@@ -62,11 +65,9 @@ function resolveImageUrl(u) {
 
   const s = String(u).trim();
 
-  // absolute url
   if (/^https?:\/\//i.test(s)) {
     try {
       const url = new URL(s);
-
       const pathname = url.pathname || "";
       const isStorage =
         /^\/?storage\//i.test(pathname.replace(/^\//, "")) ||
@@ -82,7 +83,6 @@ function resolveImageUrl(u) {
     }
   }
 
-  // relative
   const clean = normalizeRelativePath(s);
   if (!API_ORIGIN) return clean;
   return `${API_ORIGIN}${clean}`;
@@ -191,7 +191,7 @@ function getOwnerInitials(name) {
   return (a + b).toUpperCase();
 }
 
-/* ✅ NEW: Showroom profile helpers */
+/* ✅ Showroom profile helpers */
 function getShowroomProfile(v) {
   return (
     v?.showroom_profile ||
@@ -216,6 +216,103 @@ function getShowroomLogoRaw(v) {
   return p?.logo_path || p?.logo_url || p?.logo || null;
 }
 
+/* ---------------- simple icons ---------------- */
+function CarIcon({ className = "h-4 w-4" }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className={className} aria-hidden="true">
+      <path
+        d="M5 16l1.4-4.2A2 2 0 0 1 8.3 10h7.4a2 2 0 0 1 1.9 1.4L19 16"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path d="M4 16h16" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      <path d="M6 16v2.2A1.8 1.8 0 0 0 7.8 20H8" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      <path d="M18 16v2.2A1.8 1.8 0 0 1 16.2 20H16" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      <circle cx="7.5" cy="16.5" r="1" fill="currentColor" />
+      <circle cx="16.5" cy="16.5" r="1" fill="currentColor" />
+    </svg>
+  );
+}
+
+function SeatIcon({ className = "h-4 w-4" }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className={className} aria-hidden="true">
+      <path d="M8 12V7.5A2.5 2.5 0 0 1 10.5 5h1A2.5 2.5 0 0 1 14 7.5V12" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      <path d="M6 13h12v2.5A2.5 2.5 0 0 1 15.5 18h-7A2.5 2.5 0 0 1 6 15.5V13Z" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M6 18v1.5M18 18v1.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function TripsIcon({ className = "h-4 w-4" }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className={className} aria-hidden="true">
+      <path d="M4 7h16M7 4v6M17 4v6M5 10h14a1 1 0 0 1 1 1v6a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3v-6a1 1 0 0 1 1-1Z" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function MoneyIcon({ className = "h-4 w-4" }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className={className} aria-hidden="true">
+      <rect x="3" y="6" width="18" height="12" rx="2.5" stroke="currentColor" strokeWidth="1.8" />
+      <circle cx="12" cy="12" r="2.5" stroke="currentColor" strokeWidth="1.8" />
+      <path d="M7 10h.01M17 14h.01" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function BuildingIcon({ className = "h-4 w-4" }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className={className} aria-hidden="true">
+      <path d="M4 20h16M6 20V7a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v13M9 10h.01M12 10h.01M15 10h.01M9 13h.01M12 13h.01M15 13h.01" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function UserIcon({ className = "h-4 w-4" }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className={className} aria-hidden="true">
+      <circle cx="12" cy="8" r="3.2" stroke="currentColor" strokeWidth="1.8" />
+      <path d="M5.5 19a6.5 6.5 0 0 1 13 0" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function SparkIcon({ className = "h-4 w-4" }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className={className} aria-hidden="true">
+      <path
+        d="M12 3l1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6L12 3z"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function EmptyIcon({ className = "h-8 w-8" }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className={className} aria-hidden="true">
+      <rect x="3" y="6" width="18" height="12" rx="2.5" stroke="currentColor" strokeWidth="1.8" />
+      <path d="M7 10h10M7 14h6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function MetaChip({ icon, children }) {
+  return (
+    <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-medium text-slate-700">
+      {icon}
+      {children}
+    </span>
+  );
+}
+
 /* ---------------- component ---------------- */
 export default function VehicleGrid({
   vehicles = [],
@@ -226,17 +323,88 @@ export default function VehicleGrid({
   const total = allCount || showing;
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-slate-900">
-          Available Vehicles
-        </h2>
-        <p className="text-xs text-slate-500">
+    <div className="space-y-5">
+      <style>{`
+        @keyframes fadeUpCard {
+          from {
+            opacity: 0;
+            transform: translateY(18px) scale(.985);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+          }
+        }
+
+        @keyframes aiPulse {
+          0%, 100% {
+            box-shadow: 0 0 0 0 rgba(16,185,129,.35);
+          }
+          50% {
+            box-shadow: 0 0 0 8px rgba(16,185,129,0);
+          }
+        }
+
+        @keyframes shineMove {
+          0% { transform: translateX(-130%) skewX(-22deg); opacity: 0; }
+          25% { opacity: .28; }
+          100% { transform: translateX(230%) skewX(-22deg); opacity: 0; }
+        }
+
+        .vehicle-card-enter {
+          animation: fadeUpCard .55s ease both;
+        }
+
+        .vehicle-card {
+          position: relative;
+          overflow: hidden;
+          isolation: isolate;
+        }
+
+        .vehicle-card::before {
+          content: "";
+          position: absolute;
+          inset: 0;
+          background: linear-gradient(
+            120deg,
+            transparent 0%,
+            rgba(255,255,255,.22) 45%,
+            transparent 80%
+          );
+          transform: translateX(-130%) skewX(-22deg);
+          transition: opacity .3s ease;
+          opacity: 0;
+          z-index: 2;
+          pointer-events: none;
+        }
+
+        .vehicle-card:hover::before {
+          animation: shineMove 1.15s ease;
+          opacity: 1;
+        }
+
+        .ai-badge-pulse {
+          animation: aiPulse 2.2s infinite;
+        }
+      `}</style>
+
+      <div className="flex flex-col gap-3 rounded-3xl border border-slate-200 bg-white/90 p-4 shadow-sm shadow-slate-900/5 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 className="text-xl font-bold tracking-tight text-slate-900">
+            Available Vehicles
+          </h2>
+          <p className="mt-1 text-sm text-slate-500">
+            Explore clean, modern listings with better details and smoother interactions.
+          </p>
+        </div>
+
+        <div className="inline-flex items-center gap-2 self-start rounded-2xl bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-700 ring-1 ring-emerald-100">
+          <CarIcon className="h-4 w-4" />
           Showing {showing} of {total} results
-        </p>
+        </div>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+      <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
         {(vehicles || []).map((v, idx) => {
           const key = v?.id ?? v?.raw?.id ?? idx;
 
@@ -268,129 +436,140 @@ export default function VehicleGrid({
               key={key}
               type="button"
               onClick={() => onOpenVehicle?.(v)}
-              className="group flex flex-col overflow-hidden rounded-2xl bg-white text-left shadow-sm shadow-slate-900/5 border border-slate-200 hover:-translate-y-1 hover:shadow-lg hover:shadow-emerald-500/10 transition-all"
+              className="vehicle-card vehicle-card-enter group flex flex-col rounded-[28px] border border-slate-200 bg-white text-left shadow-sm shadow-slate-900/5 transition duration-300 hover:-translate-y-1.5 hover:shadow-xl hover:shadow-emerald-500/10 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+              style={{ animationDelay: `${idx * 70}ms` }}
             >
-              <div className="relative h-40 w-full overflow-hidden bg-slate-100">
+              <div className="relative h-52 w-full overflow-hidden rounded-t-[28px] bg-slate-100">
                 <img
                   src={img || FALLBACK_IMG}
                   alt={name}
-                  className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                  className="h-full w-full object-cover transition duration-500 group-hover:scale-110"
                   loading="lazy"
                   onError={(e) => {
                     e.currentTarget.src = FALLBACK_IMG;
                   }}
                 />
 
+                <div className="absolute inset-0 bg-gradient-to-t from-slate-950/70 via-slate-900/10 to-transparent" />
+
                 {isAiRecommended && (
-                  <span className="absolute left-2 top-2 rounded-full bg-emerald-600/90 px-2.5 py-0.5 text-[11px] font-semibold text-white shadow-sm">
+                  <span className="ai-badge-pulse absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-full bg-emerald-600 px-3 py-1 text-[11px] font-semibold text-white shadow-lg">
+                    <SparkIcon className="h-3.5 w-3.5" />
                     AI Recommended
                   </span>
                 )}
 
-                {/* ✅ Showroom badge (from profile) */}
                 {showroomName && (
-                  <div className="absolute right-2 top-2 flex items-center gap-2 rounded-full bg-white/85 px-2.5 py-1 text-slate-900 shadow-sm">
+                  <div className="absolute right-3 top-3 flex max-w-[75%] items-center gap-2 rounded-full bg-white/90 px-2.5 py-1.5 text-slate-900 shadow-md backdrop-blur">
                     {showroomLogo ? (
                       <img
                         src={showroomLogo}
                         alt={showroomName}
-                        className="h-6 w-6 rounded-full object-cover ring-1 ring-slate-200"
+                        className="h-7 w-7 rounded-full object-cover ring-1 ring-slate-200"
                         loading="lazy"
                         onError={(e) => {
                           e.currentTarget.style.display = "none";
                         }}
                       />
                     ) : (
-                      <div className="h-6 w-6 rounded-full bg-slate-200 grid place-items-center text-[10px] font-semibold">
-                        🏢
+                      <div className="grid h-7 w-7 place-items-center rounded-full bg-slate-200 text-slate-700">
+                        <BuildingIcon className="h-3.5 w-3.5" />
                       </div>
                     )}
-                    <span className="text-[11px] font-semibold truncate max-w-[160px]">
+
+                    <span className="truncate text-[11px] font-semibold">
                       {showroomName}
                     </span>
                   </div>
                 )}
 
-                {/* ✅ Listed-by overlay chip */}
-                {ownerName && (
-                  <div className="absolute bottom-2 left-2 flex items-center gap-2 rounded-full bg-black/45 px-2.5 py-1 text-white">
-                    {ownerAvatar ? (
-                      <img
-                        src={ownerAvatar}
-                        alt={ownerName}
-                        className="h-6 w-6 rounded-full object-cover ring-1 ring-white/20"
-                        loading="lazy"
-                        onError={(e) => {
-                          e.currentTarget.style.display = "none";
-                        }}
-                      />
-                    ) : (
-                      <div className="h-6 w-6 rounded-full bg-white/20 grid place-items-center text-[10px] font-semibold">
-                        {ownerInitials}
-                      </div>
-                    )}
-
-                    <span className="text-[11px] font-medium truncate max-w-[190px]">
-                      Listed by {ownerName}
-                    </span>
-                  </div>
-                )}
-              </div>
-
-              <div className="flex flex-1 flex-col px-4 py-3 gap-1.5">
-                <div className="flex items-start justify-between gap-2">
+                <div className="absolute bottom-3 left-3 right-3 flex items-end justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="text-sm font-semibold text-slate-900 truncate">
+                    <p className="truncate text-lg font-bold text-white drop-shadow-sm">
                       {name}
                     </p>
-
-                    <p className="text-[11px] text-slate-500 truncate">
+                    <p className="mt-1 truncate text-xs text-white/85">
                       {type}
                       {seats ? ` • ${seats} seats` : ""}
                     </p>
-
-                    {/* ✅ Showroom info in details area */}
-                    {showroomName && (
-                      <p className="mt-1 text-[11px] text-slate-500 truncate">
-                        Showroom:{" "}
-                        <span className="text-slate-700 font-medium">
-                          {showroomName}
-                        </span>
-                      </p>
-                    )}
-
-                    {ownerName && (
-                      <p className="mt-1 text-[11px] text-slate-500 truncate">
-                        Listed by:{" "}
-                        <span className="text-slate-700">{ownerName}</span>
-                      </p>
-                    )}
                   </div>
 
-                  <div className="text-right shrink-0">
-                    <p className="text-sm font-semibold text-slate-900">
+                  <div className="shrink-0 rounded-2xl bg-white/92 px-3 py-2 text-right shadow-md backdrop-blur">
+                    <p className="inline-flex items-center gap-1 text-sm font-bold text-slate-900">
+                      <MoneyIcon className="h-4 w-4 text-emerald-600" />
                       {formatRWF(price)}
-                      <span className="text-[11px] font-normal text-slate-500">
-                        {" "}
-                        / day
-                      </span>
                     </p>
-                    <p className="text-[11px] text-emerald-600">View details</p>
+                    <p className="text-[11px] text-slate-500">per day</p>
                   </div>
                 </div>
+              </div>
 
-                <div className="mt-1 flex items-center justify-between">
-                  {rating != null ? (
-                    <RatingStars value={rating} />
-                  ) : (
-                    <p className="text-[11px] text-slate-400">No rating yet</p>
-                  )}
+              <div className="flex flex-1 flex-col gap-4 p-4">
+                <div className="flex flex-wrap gap-2">
+                  <MetaChip icon={<CarIcon className="h-3.5 w-3.5" />}>{type}</MetaChip>
+
+                  {seats ? (
+                    <MetaChip icon={<SeatIcon className="h-3.5 w-3.5" />}>
+                      {seats} seats
+                    </MetaChip>
+                  ) : null}
 
                   {trips != null ? (
-                    <p className="text-[11px] text-slate-500">{trips} trips</p>
-                  ) : (
-                    <p className="text-[11px] text-slate-400">—</p>
+                    <MetaChip icon={<TripsIcon className="h-3.5 w-3.5" />}>
+                      {trips} trips
+                    </MetaChip>
+                  ) : null}
+                </div>
+
+                <div className="grid gap-2 text-sm">
+                  {showroomName && (
+                    <div className="flex items-center gap-2 text-slate-600">
+                      <BuildingIcon className="h-4 w-4 text-emerald-600" />
+                      <span className="truncate">
+                        Showroom:{" "}
+                        <span className="font-semibold text-slate-800">{showroomName}</span>
+                      </span>
+                    </div>
                   )}
+
+                  {ownerName && (
+                    <div className="flex items-center gap-2 text-slate-600">
+                      {ownerAvatar ? (
+                        <img
+                          src={ownerAvatar}
+                          alt={ownerName}
+                          className="h-6 w-6 rounded-full object-cover ring-1 ring-slate-200"
+                          loading="lazy"
+                          onError={(e) => {
+                            e.currentTarget.style.display = "none";
+                          }}
+                        />
+                      ) : (
+                        <div className="grid h-6 w-6 place-items-center rounded-full bg-emerald-100 text-[10px] font-bold text-emerald-700">
+                          {ownerInitials}
+                        </div>
+                      )}
+
+                      <span className="truncate">
+                        Listed by{" "}
+                        <span className="font-semibold text-slate-800">{ownerName}</span>
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="mt-auto flex items-center justify-between border-t border-slate-100 pt-3">
+                  <div>
+                    {rating != null ? (
+                      <RatingStars value={rating} />
+                    ) : (
+                      <p className="text-xs text-slate-400">No rating yet</p>
+                    )}
+                  </div>
+
+                  <span className="inline-flex items-center rounded-full bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white transition duration-300 group-hover:bg-emerald-600">
+                    View details
+                  </span>
                 </div>
               </div>
             </button>
@@ -398,8 +577,19 @@ export default function VehicleGrid({
         })}
 
         {showing === 0 && (
-          <div className="col-span-full flex items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-white/60 py-10 text-sm text-slate-500">
-            No vehicles match your filters. Try adjusting the price or car type.
+          <div className="col-span-full rounded-[28px] border border-dashed border-slate-300 bg-gradient-to-br from-white to-slate-50 p-10 text-center shadow-sm">
+            <div className="mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-emerald-50 text-emerald-600 ring-1 ring-emerald-100">
+              <EmptyIcon className="h-8 w-8" />
+            </div>
+
+            <h3 className="mt-4 text-lg font-semibold text-slate-900">
+              No vehicles found
+            </h3>
+
+            <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-500">
+              No vehicles match your current filters. Try changing the price range,
+              vehicle type, or search options.
+            </p>
           </div>
         )}
       </div>

@@ -1,4 +1,3 @@
-// src/pages/owner/OwnerShowroomPage.jsx
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
@@ -27,6 +26,191 @@ function safeJsonFromText(text) {
   }
 }
 
+function initials(value) {
+  const str = String(value || "").trim();
+  if (!str) return "SR";
+  const parts = str.split(" ").filter(Boolean);
+  return ((parts[0]?.[0] || "S") + (parts[1]?.[0] || "R")).toUpperCase();
+}
+
+function formatMoney(value) {
+  if (value == null || value === "") return "Price not set";
+  const num = Number(value);
+  if (Number.isNaN(num)) return String(value);
+
+  return new Intl.NumberFormat(undefined, {
+    style: "currency",
+    currency: "RWF",
+    maximumFractionDigits: 0,
+  }).format(num);
+}
+
+function getVehiclePrice(v) {
+  return v?.base_daily_rate ?? v?.price_per_day ?? v?.daily_rate ?? null;
+}
+
+function getVehiclePlate(v) {
+  return v?.plate_no || v?.license_plate || v?.plate || "No plate";
+}
+
+function getVehicleTitle(v) {
+  const full = [v?.year, v?.make, v?.model].filter(Boolean).join(" ").trim();
+  return full || v?.name || v?.display_name || "Vehicle";
+}
+
+function getVehicleType(v) {
+  return (
+    v?.type?.name ||
+    v?.vehicle_type?.name ||
+    v?.vehicleType?.name ||
+    v?.category ||
+    "Standard"
+  );
+}
+
+function getVehicleImage(v) {
+  if (typeof v?.image_url === "string" && v.image_url.trim()) return v.image_url;
+  if (typeof v?.primary_image_url === "string" && v.primary_image_url.trim()) {
+    return v.primary_image_url;
+  }
+
+  if (Array.isArray(v?.images) && v.images.length > 0) {
+    const first = v.images[0];
+    return first?.url || first?.image_url || first?.path || "";
+  }
+
+  if (Array.isArray(v?.media) && v.media.length > 0) {
+    const first = v.media[0];
+    if (typeof first === "string") return first;
+    return first?.url || first?.image_url || first?.path || "";
+  }
+
+  return "";
+}
+
+function getShowroomLocation(showroom) {
+  return (
+    showroom?.location ||
+    showroom?.address ||
+    showroom?.city ||
+    showroom?.district ||
+    "Location not added yet"
+  );
+}
+
+function getStatusMeta(status) {
+  const s = String(status || "available").toLowerCase();
+
+  if (s === "available" || s === "in_service" || s === "live") {
+    return {
+      label: s.replace("_", " "),
+      badge: "bg-emerald-50 text-emerald-700 border border-emerald-200",
+      dot: "bg-emerald-500",
+    };
+  }
+
+  if (s === "booked" || s === "pending" || s === "reserved") {
+    return {
+      label: s.replace("_", " "),
+      badge: "bg-amber-50 text-amber-700 border border-amber-200",
+      dot: "bg-amber-500",
+    };
+  }
+
+  if (s === "maintenance") {
+    return {
+      label: "maintenance",
+      badge: "bg-rose-50 text-rose-700 border border-rose-200",
+      dot: "bg-rose-500",
+    };
+  }
+
+  return {
+    label: s.replace("_", " "),
+    badge: "bg-slate-100 text-slate-700 border border-slate-200",
+    dot: "bg-slate-500",
+  };
+}
+
+function SmallStat({ label, value }) {
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="text-[11px] uppercase tracking-[0.16em] text-slate-400">
+        {label}
+      </div>
+      <div className="mt-2 text-2xl font-semibold text-slate-900">{value}</div>
+    </div>
+  );
+}
+
+function VehicleMiniCard({ vehicle, index, onOpenAll }) {
+  const image = getVehicleImage(vehicle);
+  const meta = getStatusMeta(vehicle?.status);
+
+  return (
+    <div
+      className="fade-up overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm transition duration-300 hover:-translate-y-1 hover:shadow-lg"
+      style={{ animationDelay: `${index * 70}ms` }}
+    >
+      <div className="relative h-40 overflow-hidden bg-gradient-to-br from-slate-900 via-slate-800 to-blue-900">
+        {image ? (
+          <img
+            src={image}
+            alt={getVehicleTitle(vehicle)}
+            className="h-full w-full object-cover transition duration-500 hover:scale-105"
+          />
+        ) : (
+          <div className="grid h-full place-items-center text-3xl text-white">🚘</div>
+        )}
+
+        <div className="absolute left-3 top-3">
+          <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${meta.badge}`}>
+            {meta.label}
+          </span>
+        </div>
+
+        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-3">
+          <div className="text-[11px] uppercase tracking-[0.16em] text-white/70">
+            {getVehiclePlate(vehicle)}
+          </div>
+          <div className="truncate text-sm font-semibold text-white">
+            {getVehicleTitle(vehicle)}
+          </div>
+        </div>
+      </div>
+
+      <div className="p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <div className="text-[11px] uppercase tracking-[0.16em] text-slate-400">
+              Type
+            </div>
+            <div className="mt-1 text-sm font-medium text-slate-800">
+              {getVehicleType(vehicle)}
+            </div>
+          </div>
+
+          <div className="text-right">
+            <div className="text-[11px] uppercase tracking-[0.16em] text-slate-400">
+              / Day
+            </div>
+            <div className="mt-1 text-sm font-semibold text-slate-900">
+              {formatMoney(getVehiclePrice(vehicle))}
+            </div>
+          </div>
+        </div>
+
+        <button
+          onClick={onOpenAll}
+          className="mt-4 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+        >
+          Manage vehicle
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function OwnerShowroomPage() {
   const nav = useNavigate();
 
@@ -39,21 +223,16 @@ export default function OwnerShowroomPage() {
     );
   }, []);
 
-  // ✅ FIX: read the correct env var (VITE_API_URL), fallback to VITE_API_BASE
-  // Your .env has: VITE_API_URL=http://127.0.0.1:8000/api
   const API_BASE = useMemo(() => {
     const raw =
       (import.meta?.env?.VITE_API_URL || import.meta?.env?.VITE_API_BASE || "")
         .trim()
         .replace(/\/+$/, "");
-
-    // If env missing, fall back to /api (works only if you proxy /api to backend)
     return raw || "/api";
   }, []);
 
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
-
   const [showroom, setShowroom] = useState(null);
   const [vehicles, setVehicles] = useState([]);
 
@@ -72,7 +251,6 @@ export default function OwnerShowroomPage() {
       const text = await res.text();
       const json = safeJsonFromText(text);
 
-      // Helpful error messages
       if (res.status === 401) {
         throw new Error(json?.message || "Unauthorized. Please login again.");
       }
@@ -83,7 +261,7 @@ export default function OwnerShowroomPage() {
           json?.error ||
           text ||
           `Request failed (${res.status})`;
-        throw new Error(`${msg}  |  URL: ${url}`);
+        throw new Error(`${msg} | URL: ${url}`);
       }
 
       return json;
@@ -94,12 +272,14 @@ export default function OwnerShowroomPage() {
       setErr("");
 
       try {
-        // ✅ REAL endpoints that exist in your Laravel route:list
-        const srRes = await req(`${API_BASE}/showroom/profile`);
+        const [srRes, vRes] = await Promise.all([
+          req(`${API_BASE}/showroom/profile`),
+          req(`${API_BASE}/showroom/vehicles`),
+        ]);
+
         const sr = pickData(srRes);
         const showroomObj = Array.isArray(sr) ? sr[0] : sr;
 
-        const vRes = await req(`${API_BASE}/showroom/vehicles`);
         const vData = pickData(vRes);
         const vList = Array.isArray(vData)
           ? vData
@@ -121,157 +301,277 @@ export default function OwnerShowroomPage() {
     }
 
     load();
+
     return () => {
       alive = false;
     };
   }, [API_BASE, token]);
 
+  const stats = useMemo(() => {
+    const total = vehicles.length;
+    const available = vehicles.filter((v) =>
+      ["available", "in_service", "live"].includes(
+        String(v?.status || "").toLowerCase()
+      )
+    ).length;
+    const booked = vehicles.filter((v) =>
+      ["booked", "pending", "reserved"].includes(
+        String(v?.status || "").toLowerCase()
+      )
+    ).length;
+    const maintenance = vehicles.filter(
+      (v) => String(v?.status || "").toLowerCase() === "maintenance"
+    ).length;
+
+    return {
+      total,
+      available,
+      booked,
+      maintenance,
+      featured: vehicles.slice(0, 6),
+      recent: vehicles.slice(0, 5),
+    };
+  }, [vehicles]);
+
+  const showroomName =
+    showroom?.name || showroom?.title || `${user?.name || "My"} Showroom`;
+
+  const ownerName = user?.name || user?.email || "Owner";
+  const locationLabel = getShowroomLocation(showroom);
+
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold text-slate-900">My ShowRoom</h1>
-          <p className="text-sm text-slate-500">
-            This is your showroom page. From here you can manage and add cars 
-          </p>
+    <div className="min-h-screen bg-[linear-gradient(180deg,#f8fbff_0%,#eef4ff_100%)] px-4 py-6 sm:px-6 lg:px-8">
+      <style>{`
+        .fade-up {
+          opacity: 0;
+          transform: translateY(14px);
+          animation: fadeUp .55s ease forwards;
+        }
+        @keyframes fadeUp {
+          to { opacity: 1; transform: translateY(0); }
+        }
+      `}</style>
 
-        </div>
-
-        <button
-          onClick={() => nav("/owner/vehicles")}
-          className="inline-flex items-center h-10 px-4 rounded-lg bg-blue-600 text-white hover:bg-blue-700"
-        >
-          ➕ Add Car
-        </button>
-      </div>
-
-      {loading && (
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 text-slate-600">
-          Loading your showroom...
-        </div>
-      )}
-
-      {!loading && err && (
-        <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-rose-700">
-          {err}
-          <div className="mt-2 text-sm text-rose-600">
-            Tip: Your backend routes are: <b>/api/showroom/profile</b> and{" "}
-            <b>/api/showroom/vehicles</b>
-          </div>
-        </div>
-      )}
-
-      {!loading && !err && (
-        <>
-          <div className="rounded-2xl border border-slate-200 bg-white p-5">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <div className="text-sm text-slate-500">Showroom</div>
-                <div className="text-xl font-semibold text-slate-900">
-                  {showroom?.name || showroom?.title || "My Showroom"}
-                </div>
-                <div className="mt-1 text-sm text-slate-600">
-                  Owner: {user?.name || user?.email || "Owner"}
-                </div>
+      <div className="mx-auto max-w-7xl space-y-6">
+        <section className="fade-up rounded-[32px] border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+          <div className="grid gap-5 xl:grid-cols-[1.3fr_0.7fr]">
+            <div className="rounded-[28px] bg-[linear-gradient(135deg,#0f172a_0%,#1e3a8a_100%)] p-6 text-white">
+              <div className="flex flex-wrap items-center gap-3">
+                <span className="rounded-full border border-white/15 bg-white/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em]">
+                  Showroom page
+                </span>
+                <span className="rounded-full border border-white/15 bg-white/10 px-3 py-1 text-[11px] font-semibold">
+                  Premium presentation
+                </span>
               </div>
 
-              <div className="text-xs px-2 py-1 rounded-full bg-slate-100 text-slate-700 border border-slate-200">
-                {showroom?.status || "active"}
-              </div>
-            </div>
+              <h1 className="mt-5 text-3xl font-semibold leading-tight sm:text-4xl">
+                {showroomName}
+              </h1>
 
-            <div className="mt-4 grid sm:grid-cols-2 lg:grid-cols-3 gap-3 text-sm">
-              <div className="rounded-xl border border-slate-200 p-3">
-                <div className="text-xs text-slate-500">Location</div>
-                <div className="font-medium text-slate-800">
-                  {showroom?.location ||
-                    showroom?.address ||
-                    showroom?.city ||
-                    "-"}
-                </div>
-              </div>
-              <div className="rounded-xl border border-slate-200 p-3">
-                <div className="text-xs text-slate-500">Phone</div>
-                <div className="font-medium text-slate-800">
-                  {showroom?.phone || "-"}
-                </div>
-              </div>
-              <div className="rounded-xl border border-slate-200 p-3">
-                <div className="text-xs text-slate-500">Email</div>
-                <div className="font-medium text-slate-800">
-                  {showroom?.email || "-"}
-                </div>
-              </div>
-            </div>
-          </div>
+              <p className="mt-4 max-w-2xl text-sm leading-7 text-slate-200">
+                Present your vehicles in a calm, polished, international-style
+                showroom layout with compact data and better visual balance.
+              </p>
 
-          <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
-            <div className="px-4 py-3 border-b border-slate-200 font-medium flex items-center justify-between">
-              <span>My Vehicles</span>
-              <span className="text-xs text-slate-500">
-                {vehicles?.length || 0} vehicle(s)
-              </span>
-            </div>
-
-            <div className="overflow-x-auto">
-              <table className="min-w-full text-sm">
-                <thead>
-                  <tr className="text-left text-slate-500 bg-slate-50">
-                    <th className="px-4 py-2">Plate</th>
-                    <th className="px-4 py-2">Make</th>
-                    <th className="px-4 py-2">Model</th>
-                    <th className="px-4 py-2">Status</th>
-                    <th className="px-4 py-2">Price/Day</th>
-                  </tr>
-                </thead>
-
-                <tbody>
-                  {(vehicles || []).slice(0, 10).map((v) => (
-                    <tr key={v.id} className="border-t border-slate-100">
-                      <td className="px-4 py-2 font-medium text-slate-800">
-                        {v.plate_no || v.license_plate || "-"}
-                      </td>
-                      <td className="px-4 py-2">{v.make || "-"}</td>
-                      <td className="px-4 py-2">{v.model || "-"}</td>
-                      <td className="px-4 py-2">
-                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs bg-slate-900/5 text-slate-700">
-                          {v.status || "available"}
-                        </span>
-                      </td>
-                      <td className="px-4 py-2">
-                        {v.base_daily_rate ?? v.price_per_day ?? "-"}
-                      </td>
-                    </tr>
-                  ))}
-
-                  {(!vehicles || vehicles.length === 0) && (
-                    <tr>
-                      <td
-                        colSpan={5}
-                        className="px-4 py-6 text-center text-slate-500"
-                      >
-                        No vehicles yet. Click <b>Add Car</b> to add your first
-                        car 🚗
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-
-            {vehicles?.length > 10 && (
-              <div className="px-4 py-3 border-t border-slate-200 text-sm text-slate-600 flex justify-end">
+              <div className="mt-6 flex flex-wrap gap-3">
                 <button
                   onClick={() => nav("/owner/vehicles")}
-                  className="text-blue-600 hover:text-blue-700 font-medium"
+                  className="rounded-full bg-white px-5 py-3 text-sm font-semibold text-slate-900 transition hover:bg-slate-100"
                 >
-                  View all vehicles →
+                  Add car
+                </button>
+                <button
+                  onClick={() => nav("/owner")}
+                  className="rounded-full border border-white/20 bg-white/10 px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/15"
+                >
+                  Open dashboard
                 </button>
               </div>
-            )}
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-1">
+              <div className="rounded-[28px] border border-slate-200 bg-slate-50 p-5">
+                <div className="flex items-center gap-4">
+                  <div className="grid h-14 w-14 place-items-center rounded-2xl bg-slate-900 text-sm font-semibold text-white">
+                    {initials(showroomName)}
+                  </div>
+                  <div>
+                    <div className="text-[11px] uppercase tracking-[0.16em] text-slate-400">
+                      Owner
+                    </div>
+                    <div className="mt-1 text-base font-semibold text-slate-900">
+                      {ownerName}
+                    </div>
+                    <div className="mt-1 text-sm text-slate-500">
+                      {locationLabel}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <SmallStat label="Vehicles" value={stats.total} />
+                <SmallStat label="Available" value={stats.available} />
+                <SmallStat label="Booked" value={stats.booked} />
+                <SmallStat label="Service" value={stats.maintenance} />
+              </div>
+            </div>
           </div>
-        </>
-      )}
+        </section>
+
+        {loading ? (
+          <div className="grid gap-5 lg:grid-cols-[1.1fr_0.9fr]">
+            <div className="h-72 animate-pulse rounded-[28px] border border-slate-200 bg-white" />
+            <div className="h-72 animate-pulse rounded-[28px] border border-slate-200 bg-white" />
+          </div>
+        ) : err ? (
+          <div className="rounded-[28px] border border-rose-200 bg-rose-50 p-5 text-rose-700">
+            <div className="text-lg font-semibold">Unable to load showroom</div>
+            <div className="mt-2 text-sm">{err}</div>
+          </div>
+        ) : (
+          <>
+            <section className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
+              <div className="fade-up rounded-[30px] border border-slate-200 bg-white p-5 shadow-sm">
+                <div className="flex items-end justify-between gap-4">
+                  <div>
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-blue-500">
+                      Showroom profile
+                    </div>
+                    <h2 className="mt-2 text-2xl font-semibold text-slate-900">
+                      Business details
+                    </h2>
+                  </div>
+                </div>
+
+                <div className="mt-5 grid gap-4 sm:grid-cols-2">
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                    <div className="text-[11px] uppercase tracking-[0.16em] text-slate-400">
+                      Showroom name
+                    </div>
+                    <div className="mt-2 text-sm font-semibold text-slate-900">
+                      {showroom?.name || "Not added"}
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                    <div className="text-[11px] uppercase tracking-[0.16em] text-slate-400">
+                      Address
+                    </div>
+                    <div className="mt-2 text-sm font-semibold text-slate-900">
+                      {showroom?.address || "Not added"}
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                    <div className="text-[11px] uppercase tracking-[0.16em] text-slate-400">
+                      Phone
+                    </div>
+                    <div className="mt-2 text-sm font-semibold text-slate-900">
+                      {showroom?.phone || "Not added"}
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                    <div className="text-[11px] uppercase tracking-[0.16em] text-slate-400">
+                      Email
+                    </div>
+                    <div className="mt-2 break-all text-sm font-semibold text-slate-900">
+                      {showroom?.email || user?.email || "Not added"}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="fade-up rounded-[30px] border border-slate-200 bg-white p-5 shadow-sm">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-blue-500">
+                  Recent vehicles
+                </div>
+                <h2 className="mt-2 text-2xl font-semibold text-slate-900">
+                  Quick lineup
+                </h2>
+
+                <div className="mt-5 space-y-3">
+                  {stats.recent.length > 0 ? (
+                    stats.recent.map((v) => {
+                      const meta = getStatusMeta(v.status);
+                      return (
+                        <div
+                          key={v.id}
+                          className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3"
+                        >
+                          <div className="min-w-0">
+                            <div className="truncate text-sm font-semibold text-slate-900">
+                              {getVehicleTitle(v)}
+                            </div>
+                            <div className="mt-1 truncate text-xs text-slate-500">
+                              {getVehiclePlate(v)} • {getVehicleType(v)}
+                            </div>
+                          </div>
+
+                          <span className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold ${meta.badge}`}>
+                            {meta.label}
+                          </span>
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-6 text-center text-sm text-slate-500">
+                      No vehicles yet.
+                    </div>
+                  )}
+                </div>
+              </div>
+            </section>
+
+            <section className="fade-up rounded-[30px] border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-blue-500">
+                    Featured collection
+                  </div>
+                  <h2 className="mt-2 text-2xl font-semibold text-slate-900">
+                    Compact premium cards
+                  </h2>
+                </div>
+
+                <button
+                  onClick={() => nav("/owner/vehicles")}
+                  className="rounded-full border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+                >
+                  View all vehicles
+                </button>
+              </div>
+
+              {stats.featured.length > 0 ? (
+                <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                  {stats.featured.map((vehicle, index) => (
+                    <VehicleMiniCard
+                      key={vehicle?.id || index}
+                      vehicle={vehicle}
+                      index={index}
+                      onOpenAll={() => nav("/owner/vehicles")}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <div className="mt-6 rounded-[28px] border border-dashed border-slate-300 bg-slate-50 p-10 text-center">
+                  <div className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-white text-2xl shadow-sm">
+                    🚗
+                  </div>
+                  <h3 className="mt-4 text-lg font-semibold text-slate-900">
+                    Start building your showroom
+                  </h3>
+                  <p className="mt-2 text-sm text-slate-500">
+                    Add your first car to begin presenting your inventory.
+                  </p>
+                </div>
+              )}
+            </section>
+          </>
+        )}
+      </div>
     </div>
   );
 }

@@ -11,6 +11,12 @@ function safeJsonFromText(text) {
   }
 }
 
+function normalizeRoleName(role) {
+  if (!role) return "";
+  if (typeof role === "string") return role.trim().toLowerCase();
+  return String(role?.name || role?.slug || "").trim().toLowerCase();
+}
+
 // map primary role -> route
 const routeForRole = (role) => {
   const map = {
@@ -56,7 +62,6 @@ export default function Login() {
         body: JSON.stringify({ email, password }),
       });
 
-      // ✅ SAFELY read body
       const text = await res.text();
       const json = safeJsonFromText(text);
 
@@ -66,20 +71,17 @@ export default function Login() {
           json?.errors?.email?.[0] ||
           json?.errors?.password?.[0] ||
           json?.errors?.error?.[0] ||
-          text || // if server returned plain text / HTML
+          text ||
           `Login failed (${res.status})`;
         throw new Error(msg);
       }
 
-      // ✅ Normalize different backend response shapes
+      // ✅ Normalize backend shapes
       const data = json?.data ?? json ?? {};
       const token = data?.token || json?.token;
-
-      // some backends return user directly in `data.user`, others in `user`
       const user = data?.user ?? json?.user ?? null;
 
-      // roles can be: ["owner"] OR [{name:"owner"}] OR user.roles_list etc
-      const roles =
+      const rawRoles =
         data?.roles ??
         user?.roles_list ??
         user?.roles ??
@@ -94,29 +96,33 @@ export default function Login() {
         );
       }
 
-      const roleNames = Array.isArray(roles)
-        ? roles
-            .map((r) => (typeof r === "string" ? r : r?.name))
-            .filter(Boolean)
+      const roleNames = Array.isArray(rawRoles)
+        ? rawRoles.map(normalizeRoleName).filter(Boolean)
         : [];
+
+      const primary =
+        normalizeRoleName(user?.primary_role) ||
+        normalizeRoleName(user?.role) ||
+        roleNames?.[0] ||
+        "";
 
       // persist auth
       localStorage.setItem("token", token);
       localStorage.setItem("auth.user", JSON.stringify(user));
+      localStorage.setItem("auth_user", JSON.stringify(user));
+      localStorage.setItem("smartcar_user", JSON.stringify(user));
       localStorage.setItem("auth.roles", JSON.stringify(roleNames));
       localStorage.setItem("auth.permissions", JSON.stringify(perms));
       localStorage.setItem("lastEmail", email);
 
-      const primary =
-        user?.primary_role ||
-        user?.role ||
-        roleNames?.[0] ||
-        "";
+      // ✅ force redirect driver users to /driver
+      const isDriver =
+        primary === "driver" || roleNames.includes("driver");
 
       const suggested = routeForRole(primary);
-
       const from = location.state?.from;
-      const dest = from ? from : suggested;
+
+      const dest = isDriver ? "/driver" : from || suggested;
 
       nav(dest, { replace: true });
     } catch (e2) {

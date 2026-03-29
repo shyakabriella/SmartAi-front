@@ -8,10 +8,7 @@ export default function ImageOnlyWelcome({
   title = "SmartCar AI",
   subtitle = "Smart, personalized car rentals",
 }) {
-  // ✅ always with driver (no button)
   const [withDriver] = useState(true);
-
-  // ✅ keep radius but no label/words
   const [radius, setRadius] = useState(10);
 
   // pickup
@@ -30,35 +27,20 @@ export default function ImageOnlyWelcome({
 
   const inputRef = useRef(null);
   const autoRef = useRef(null);
-
-  // ✅ debounce timer for auto-filter
   const debounceRef = useRef(null);
 
-  // ✅ Normalize API response to always return an array
-  // Works for:
-  // - [ ... ]
-  // - { data: [ ... ] }
-  // - { success: true, data: [ ... ] }
-  // - { data: { data: [ ... ] } } (pagination)
   const toList = (res) => {
     const payload = res?.data ?? res;
 
     if (Array.isArray(payload)) return payload;
-
-    // most common
     if (Array.isArray(payload?.data)) return payload.data;
-
-    // pagination style: { data: { data: [...] } }
     if (Array.isArray(payload?.data?.data)) return payload.data.data;
-
-    // sometimes named keys
     if (Array.isArray(payload?.cars)) return payload.cars;
     if (Array.isArray(payload?.drivers)) return payload.drivers;
 
     return [];
   };
 
-  // ✅ Load Google Maps JS (Places)
   useEffect(() => {
     const key = import.meta.env.VITE_GOOGLE_MAPS_KEY;
     if (!key) return;
@@ -77,7 +59,6 @@ export default function ImageOnlyWelcome({
     document.head.appendChild(s);
   }, []);
 
-  // ✅ Init Autocomplete
   useEffect(() => {
     const key = import.meta.env.VITE_GOOGLE_MAPS_KEY;
     if (!key) return;
@@ -112,6 +93,7 @@ export default function ImageOnlyWelcome({
           }
         });
       }
+
       return true;
     };
 
@@ -126,7 +108,6 @@ export default function ImageOnlyWelcome({
     };
   }, []);
 
-  // ✅ GPS by default
   useEffect(() => {
     let cancelled = false;
 
@@ -151,7 +132,6 @@ export default function ImageOnlyWelcome({
     };
   }, []);
 
-  // ✅ pickup > gps
   const activeCoords = useMemo(() => {
     if (pickupCoords) return { coords: pickupCoords, kind: "pickup" };
     if (gpsCoords) return { coords: gpsCoords, kind: "nearby" };
@@ -171,14 +151,12 @@ export default function ImageOnlyWelcome({
     return d?.user?.name || d?.name || d?.full_name || d?.user_name || "Driver";
   };
 
-  // ✅ If user clears pickup -> go back to GPS
   useEffect(() => {
     if (!pickupText.trim()) {
       setPickupCoords(null);
     }
   }, [pickupText]);
 
-  // ✅ AUTO FILTER load (debounced)
   useEffect(() => {
     let cancelled = false;
 
@@ -194,13 +172,11 @@ export default function ImageOnlyWelcome({
         const r = Math.max(1, Number(radius) || 10);
         setSource(activeCoords.kind);
 
-        // cars nearby
         const carsRes = await api(
           `/public/nearby/cars?lat=${activeCoords.coords.lat}&lng=${activeCoords.coords.lng}&radius=${r}`
         );
         let carsList = toList(carsRes);
 
-        // drivers nearby
         let driversList = [];
         if (withDriver) {
           const driversRes = await api(
@@ -216,7 +192,6 @@ export default function ImageOnlyWelcome({
           if (nothing) {
             setSource("fallback");
 
-            // fallback cars
             let fallbackCars = [];
             try {
               const res = await api(
@@ -227,7 +202,6 @@ export default function ImageOnlyWelcome({
               fallbackCars = [];
             }
 
-            // fallback drivers: retry same coords (you can change this to a global drivers list if you want)
             let fallbackDrivers = [];
             if (withDriver) {
               try {
@@ -256,7 +230,7 @@ export default function ImageOnlyWelcome({
       } finally {
         if (!cancelled) setLoading(false);
       }
-    }, 500); // ✅ debounce delay
+    }, 500);
 
     return () => {
       cancelled = true;
@@ -271,8 +245,8 @@ export default function ImageOnlyWelcome({
       </h1>
       <p className="sr-only">{subtitle}</p>
 
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pt-6 pb-10">
-        <div className="relative w-full overflow-hidden rounded-3xl shadow-xl bg-slate-900 min-h-[660px]">
+      <div className="mx-auto max-w-7xl px-4 pt-6 pb-10 sm:px-6 lg:px-8">
+        <div className="relative min-h-[660px] w-full overflow-hidden rounded-3xl bg-slate-900 shadow-xl">
           <div
             className="absolute inset-0 bg-cover bg-center"
             style={{ backgroundImage: `url(${HERO_IMAGE})` }}
@@ -280,24 +254,37 @@ export default function ImageOnlyWelcome({
           <div className="absolute inset-0 bg-gradient-to-r from-slate-900/70 via-slate-900/25 to-slate-900/0" />
 
           <div className="relative z-10 mx-auto max-w-5xl p-4 sm:p-8">
-            <div className="rounded-3xl bg-white/95 shadow-2xl backdrop-blur p-6 sm:p-8">
+            <div className="rounded-3xl bg-white/95 p-6 shadow-2xl backdrop-blur sm:p-8">
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <div className="text-lg font-bold text-slate-900">
                     🚗 {title}
                   </div>
                   <div className="text-sm text-slate-600">{subtitle}</div>
+
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <span className="inline-flex rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
+                      {loading
+                        ? "Checking available vehicles..."
+                        : `${cars.length} vehicle${cars.length === 1 ? "" : "s"} available`}
+                    </span>
+
+                    {drivers.length > 0 && (
+                      <span className="inline-flex rounded-full bg-sky-50 px-3 py-1 text-xs font-semibold text-sky-700">
+                        {drivers.length} driver{drivers.length === 1 ? "" : "s"} nearby
+                      </span>
+                    )}
+                  </div>
                 </div>
 
                 <div className="text-right">
                   <div className="text-xs text-slate-500">Source</div>
-                  <div className="text-sm font-semibold text-slate-800">
+                  <div className="text-sm font-semibold capitalize text-slate-800">
                     {source}
                   </div>
                 </div>
               </div>
 
-              {/* ✅ Minimal controls (no extra words) */}
               <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
                 <div className="sm:col-span-2">
                   <input
@@ -305,7 +292,7 @@ export default function ImageOnlyWelcome({
                     value={pickupText}
                     onChange={(e) => setPickupText(e.target.value)}
                     placeholder="Pickup location..."
-                    className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm"
+                    className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-slate-400"
                   />
                 </div>
 
@@ -317,18 +304,16 @@ export default function ImageOnlyWelcome({
                     min="1"
                     max="100"
                     placeholder="Radius (KM)"
-                    className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm"
+                    className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-slate-400"
                   />
                 </div>
               </div>
 
-              {/* Results */}
               <div className="mt-8 grid grid-cols-1 gap-6 sm:grid-cols-2">
-                {/* Cars */}
                 <div className="rounded-2xl border border-slate-100 bg-white p-5">
                   <div className="flex items-center justify-between">
                     <div className="text-sm font-semibold text-slate-900">
-                      🚙 Cars
+                      🚙 Available Vehicles
                     </div>
                     <div className="text-xs text-slate-500">
                       {cars.length} found
@@ -338,7 +323,7 @@ export default function ImageOnlyWelcome({
                   <div className="mt-4">
                     {cars.length === 0 ? (
                       <div className="text-sm text-slate-500">
-                        No cars available.
+                        No vehicles available.
                       </div>
                     ) : (
                       <ul className="space-y-3">
@@ -364,16 +349,8 @@ export default function ImageOnlyWelcome({
                       </ul>
                     )}
                   </div>
-
-                  <button
-                    type="button"
-                    className="mt-5 w-full rounded-xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white hover:bg-slate-800"
-                  >
-                    Continue Booking
-                  </button>
                 </div>
 
-                {/* Drivers */}
                 <div className="rounded-2xl border border-slate-100 bg-white p-5">
                   <div className="flex items-center justify-between">
                     <div className="text-sm font-semibold text-slate-900">
@@ -425,7 +402,7 @@ export default function ImageOnlyWelcome({
               )}
 
               {loading && (
-                <div className="mt-4 text-xs text-slate-500">Loading…</div>
+                <div className="mt-4 text-xs text-slate-500">Loading...</div>
               )}
             </div>
           </div>
