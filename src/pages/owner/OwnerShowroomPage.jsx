@@ -339,6 +339,9 @@ export default function OwnerShowroomPage() {
   const ownerName = user?.name || user?.email || "Owner";
   const locationLabel = getShowroomLocation(showroom);
 
+  const goToCreateVehicle = () => nav("/owner/vehicles/create");
+  const goToVehiclesList = () => nav("/owner/vehicles");
+
   return (
     <div className="min-h-screen bg-[linear-gradient(180deg,#f8fbff_0%,#eef4ff_100%)] px-4 py-6 sm:px-6 lg:px-8">
       <style>{`
@@ -376,7 +379,7 @@ export default function OwnerShowroomPage() {
 
               <div className="mt-6 flex flex-wrap gap-3">
                 <button
-                  onClick={() => nav("/owner/vehicles")}
+                  onClick={goToCreateVehicle}
                   className="rounded-full bg-white px-5 py-3 text-sm font-semibold text-slate-900 transition hover:bg-slate-100"
                 >
                   Add car
@@ -537,7 +540,7 @@ export default function OwnerShowroomPage() {
                 </div>
 
                 <button
-                  onClick={() => nav("/owner/vehicles")}
+                  onClick={goToVehiclesList}
                   className="rounded-full border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
                 >
                   View all vehicles
@@ -551,7 +554,7 @@ export default function OwnerShowroomPage() {
                       key={vehicle?.id || index}
                       vehicle={vehicle}
                       index={index}
-                      onOpenAll={() => nav("/owner/vehicles")}
+                      onOpenAll={goToVehiclesList}
                     />
                   ))}
                 </div>
@@ -566,6 +569,13 @@ export default function OwnerShowroomPage() {
                   <p className="mt-2 text-sm text-slate-500">
                     Add your first car to begin presenting your inventory.
                   </p>
+
+                  <button
+                    onClick={goToCreateVehicle}
+                    className="mt-5 rounded-full bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
+                  >
+                    Add first car
+                  </button>
                 </div>
               )}
             </section>

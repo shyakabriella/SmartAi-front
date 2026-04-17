@@ -15,6 +15,7 @@ import Owner from "../pages/owner/Owner.jsx";
 import OwnerShowroomPage from "../pages/owner/OwnerShowroomPage.jsx";
 import Booking from "../pages/owner/Booking.jsx";
 import Report from "../pages/owner/Report.jsx";
+import VehicleCreate from "../pages/owner/VehicleCreate.jsx";
 
 /* ---------------- ADMIN ---------------- */
 import Admin from "../pages/admin/Admin.jsx";
@@ -116,16 +117,19 @@ function AppRoutes() {
       >
         <Route index element={<Owner />} />
 
-        {/* ✅ Showroom page (showroom + vehicles list) */}
+        {/* Owner showroom */}
         <Route path="showroom" element={<OwnerShowroomPage />} />
 
-        {/* ✅ Reuse VehiclesPage so owner can manage vehicles */}
+        {/* Owner vehicle list */}
         <Route path="vehicles" element={<VehiclesPage />} />
 
-        {/* ✅ Owner bookings page */}
+        {/* ✅ Owner create vehicle page */}
+        <Route path="vehicles/create" element={<VehicleCreate />} />
+
+        {/* Owner bookings */}
         <Route path="bookings" element={<Booking />} />
 
-        {/* ✅ Owner reports page */}
+        {/* Owner reports */}
         <Route path="reports" element={<Report />} />
       </Route>
 
@@ -141,7 +145,7 @@ function AppRoutes() {
         <Route index element={<Admin />} />
         <Route path="agent" element={<Agent />} />
 
-        {/* ✅ Admin Report */}
+        {/* Admin Report */}
         <Route path="reports" element={<AdminReport />} />
 
         {/* Showrooms */}
