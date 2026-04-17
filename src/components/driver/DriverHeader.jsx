@@ -3,10 +3,8 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 import {
   Bell,
-  BriefcaseBusiness,
   CarFront,
   ChevronDown,
-  ClipboardList,
   LayoutDashboard,
   LogOut,
   Menu,
@@ -167,21 +165,6 @@ export default function DriverHeader({
               <LayoutDashboard size={16} />
               <span>Dashboard</span>
             </NavLink>
-
-            <NavLink to="/driver/requests" className={({ isActive }) => navBase(isActive)}>
-              <ClipboardList size={16} />
-              <span>Requests</span>
-            </NavLink>
-
-            <NavLink to="/driver/jobs" className={({ isActive }) => navBase(isActive)}>
-              <BriefcaseBusiness size={16} />
-              <span>Jobs</span>
-            </NavLink>
-
-            <NavLink to="/driver/profile" className={({ isActive }) => navBase(isActive)}>
-              <User size={16} />
-              <span>Profile</span>
-            </NavLink>
           </nav>
 
           {/* Right side */}
@@ -264,14 +247,6 @@ export default function DriverHeader({
                       My Profile
                     </Link>
 
-                    <Link
-                      to="/driver/jobs"
-                      className="flex items-center gap-2 rounded-xl px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-50"
-                    >
-                      <BriefcaseBusiness size={16} />
-                      My Jobs
-                    </Link>
-
                     <button
                       type="button"
                       onClick={handleLogout}
@@ -330,30 +305,6 @@ export default function DriverHeader({
                 icon={<LayoutDashboard size={16} />}
               >
                 Dashboard
-              </MobileNavLink>
-
-              <MobileNavLink
-                to="/driver/requests"
-                onClick={() => setOpen(false)}
-                icon={<ClipboardList size={16} />}
-              >
-                Requests
-              </MobileNavLink>
-
-              <MobileNavLink
-                to="/driver/jobs"
-                onClick={() => setOpen(false)}
-                icon={<BriefcaseBusiness size={16} />}
-              >
-                Jobs
-              </MobileNavLink>
-
-              <MobileNavLink
-                to="/driver/profile"
-                onClick={() => setOpen(false)}
-                icon={<User size={16} />}
-              >
-                Profile
               </MobileNavLink>
 
               <button

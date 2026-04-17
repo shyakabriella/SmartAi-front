@@ -7,9 +7,6 @@ import {
   User,
   LogOut,
   LayoutDashboard,
-  CalendarCheck2,
-  Settings,
-  HelpCircle,
 } from "lucide-react";
 
 /* ✅ local auth helpers (same style as your modal) */
@@ -58,13 +55,10 @@ function initials(nameOrEmail = "") {
 
 export default function CustomerHeader({
   brandName = "SmartCar AI",
-  logoSrc = "", // optional image
+  logoSrc = "",
   homeTo = "/",
-  // optional: pass user from layout; otherwise it reads localStorage
   user: userProp,
-  // optional: override navigation links
   links,
-  // optional: callback after logout
   onLogout,
 }) {
   const navigate = useNavigate();
@@ -81,16 +75,12 @@ export default function CustomerHeader({
   const defaultLinks = useMemo(
     () => [
       { to: "/customer", label: "Dashboard", icon: LayoutDashboard },
-      { to: "/customer/bookings", label: "Bookings", icon: CalendarCheck2 },
-      { to: "/customer/profile", label: "Profile", icon: Settings },
-      { to: "/customer/support", label: "Support", icon: HelpCircle },
     ],
     []
   );
 
   const navLinks = links?.length ? links : defaultLinks;
 
-  // ✅ close user menu when clicking outside
   useEffect(() => {
     function onDocClick(e) {
       if (!menuRef.current) return;
@@ -100,7 +90,6 @@ export default function CustomerHeader({
     return () => document.removeEventListener("mousedown", onDocClick);
   }, []);
 
-  // ✅ close mobile nav on route change
   useEffect(() => {
     setMobileOpen(false);
     setMenuOpen(false);
@@ -113,7 +102,6 @@ export default function CustomerHeader({
 
     if (typeof onLogout === "function") onLogout();
 
-    // redirect to login (change if your route is different)
     navigate("/login", { replace: true });
   }
 
